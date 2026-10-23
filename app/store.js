@@ -18,7 +18,6 @@ const DEFAULTS = {
   look: { type: 'droid', color: '#ff8a3d', hat: 'none', shading: 'fabric' },
   faces: [
     { uid: 'volume', type: 'volume', name: 'Volume', icon: 'volume' },
-    { uid: 'weather', type: 'weather', name: 'Weather', icon: 'weather', config: { place: 'Dubai' } },
     { uid: 'focus', type: 'focus', name: 'Focus', icon: 'focus', config: { minutes: 25 } },
   ],
   pinned: 'volume',

@@ -75,10 +75,16 @@ function FaceEditor({ face, conn, pinned, onDone, onSetup }) {
           <input className="title-in" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name !== face.name && window.billy.faceUpdate(face.uid, { name })} />
           <Status face={face} />
         </div>
-        <label className="switch" title="Show this face's reading on Billy">
-          <input type="checkbox" className="tog" checked={pinned === face.uid} onChange={(e) => window.billy.settingsSet({ pinned: e.target.checked ? face.uid : null })} />
-          Show on Billy
-        </label>
+        <div className="switches">
+          <label className="switch" title="Show this face when you hover Billy">
+            <input type="checkbox" className="tog" checked={!face.hidden} onChange={(e) => window.billy.faceUpdate(face.uid, { hidden: !e.target.checked, ...(e.target.checked ? {} : {}) }).then(() => { if (!e.target.checked && pinned === face.uid) window.billy.settingsSet({ pinned: null }) })} />
+            In Billy's faces
+          </label>
+          <label className={`switch ${face.hidden ? 'off' : ''}`} title="Show this face's number on Billy himself">
+            <input type="checkbox" className="tog" disabled={face.hidden} checked={!face.hidden && pinned === face.uid} onChange={(e) => window.billy.settingsSet({ pinned: e.target.checked ? face.uid : null })} />
+            Number on Billy
+          </label>
+        </div>
       </div>
       {conn?.blurb && <p className="blurb">{conn.blurb}</p>}
 
@@ -330,10 +336,10 @@ function Room() {
                   <p className="sub">Drag to reorder. The order is how they fan out of Billy.</p>
                   {faces.map((f) => (
                     <button key={f.uid} draggable onDragStart={() => { dragUid.current = f.uid }} onDragOver={(e) => e.preventDefault()} onDrop={() => drop(f.uid)}
-                      className={`fi ${selected?.uid === f.uid ? 'on' : ''}`} onClick={() => setSel(f.uid)}>
+                      className={`fi ${selected?.uid === f.uid ? 'on' : ''} ${f.hidden ? 'hid' : ''}`} onClick={() => setSel(f.uid)}>
                       <Icon name="grip" size={14} className="grip" />
                       <span className="fic"><Icon name={f.icon} size={16} /></span>
-                      <span className="grow name">{f.name}</span>
+                      <span className="grow name">{f.name}{f.hidden && <small> hidden</small>}</span>
                       <i className={`st ${f.error ? 'bad' : f.result || f.builtin ? 'good' : ''}`} />
                     </button>
                   ))}

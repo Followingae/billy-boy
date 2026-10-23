@@ -107,7 +107,7 @@ function snapshot() {
     const r = results.get(f.uid) || {}
     const ctx = ctxFor(f)
     return {
-      uid: f.uid, type: f.type, name: f.name || c?.name || f.type, icon: f.icon || c?.icon || 'puzzle',
+      uid: f.uid, type: f.type, name: f.name || c?.name || f.type, icon: f.icon || c?.icon || 'puzzle', hidden: !!f.hidden,
       missing: !c, builtin: !!c?.builtin,
       connected: c?.connected ? !!c.connected(ctx) : true,
       result: r.result || null, error: r.error || null, at: r.at || null,

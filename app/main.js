@@ -397,6 +397,7 @@ ipcMain.handle('face-update', (_e, uid, patch) => {
   const allowed = {}
   if (typeof patch.name === 'string') allowed.name = patch.name.slice(0, 24)
   if (typeof patch.icon === 'string') allowed.icon = patch.icon
+  if (typeof patch.hidden === 'boolean') allowed.hidden = patch.hidden
   store.set({ faces: store.get().faces.map((f) => (f.uid === uid ? { ...f, ...allowed } : f)) }); pushAll()
 })
 ipcMain.handle('face-order', (_e, uids) => {

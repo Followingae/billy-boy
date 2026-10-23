@@ -9,9 +9,10 @@ module.exports = {
   icon: 'weather',
   blurb: 'Temperature now and the next few hours. No account needed.',
   every: 15 * 60_000,
-  fields: [{ key: 'place', label: 'Place', placeholder: 'Dubai' }],
+  fields: [{ key: 'place', label: 'City', placeholder: 'Your city' }],
   async poll(ctx) {
-    const place = (ctx.config.place || 'Dubai').trim()
+    const place = (ctx.config.place || '').trim()
+    if (!place) throw new Error('Add your city.')
     if (ctx.memo.place !== place) {
       const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(place)}`)).json()
       const hit = g.results?.[0]

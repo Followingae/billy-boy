@@ -288,7 +288,7 @@ function Billy() {
   const anchor = anchorFor(dock.mode === 'float' && near ? { mode: 'float' } : dock, tucked)
 
   // Faces, with the built-in volume reading filled in here (the renderer owns it).
-  const faces = useMemo(() => st.faces.filter((f) => !f.missing).map((f) => {
+  const faces = useMemo(() => st.faces.filter((f) => !f.missing && !f.hidden).map((f) => {
     if (f.type !== 'volume') return f
     const pct = vol ? Math.round(vol.volume * 100) : null
     return { ...f, icon: vol?.muted ? 'mute' : 'volume', result: { value: pct == null ? '' : String(pct), caption: vol?.muted ? 'Muted' : 'Volume', urgency: 'calm' } }

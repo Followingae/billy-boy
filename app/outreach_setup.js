@@ -52,7 +52,7 @@ const STEPS = {
     YOU,
     { id: 'who', title: 'Who you sell to', intro: 'Your agent only goes after companies that fit this.', fields: [
       { key: 'industries', label: 'Industries', placeholder: 'Restaurants, retail, hotels', required: true },
-      { key: 'places', label: 'Where', placeholder: 'Dubai, Abu Dhabi, Riyadh' },
+      { key: 'places', label: 'Where', placeholder: 'London, Manchester' },
       { key: 'size', label: 'Company size', placeholder: 'Brands with a marketing team' },
       { key: 'titles', label: 'Who to write to', placeholder: 'Head of Marketing, Brand Manager' },
       { key: 'triggers', label: 'Signs a company needs you right now', type: 'textarea', placeholder: 'Opening a new branch\nLaunching a product\nHiring a social media manager' },
