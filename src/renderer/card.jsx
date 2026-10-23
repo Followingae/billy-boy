@@ -33,7 +33,9 @@ function Funnel({ funnel }) {
 }
 
 function Row({ it, uid, onDismiss }) {
-  const go = it.setup ? () => { window.billy.openRoom(`setup:${uid}:${it.setup}`); window.billy.closeCard() }
+  // `copy`: a message for a channel Billy can't draft into (LinkedIn, WhatsApp): one click copies it
+  // and opens the chat, so sending is a paste.
+  const go = it.copy ? () => { window.billy.copyText(it.copy); if (it.url) window.billy.openUrl(it.url) } : it.setup ? () => { window.billy.openRoom(`setup:${uid}:${it.setup}`); window.billy.closeCard() }
     : it.url ? () => window.billy.openUrl(it.url) : it.path ? () => window.billy.openPath(it.path) : null
   return (
     <button className={`row ${go ? 'link' : ''}`} onClick={go || undefined} disabled={!go}>
@@ -43,7 +45,7 @@ function Row({ it, uid, onDismiss }) {
         {(it.subtitle || it.hint) && <small>{it.subtitle}{it.hint ? <em>{it.subtitle ? ' · ' : ''}{it.hint}</em> : null}</small>}
       </span>
       {it.meta && <span className="meta">{it.meta}</span>}
-      {go && <Icon name={it.setup ? 'chevron' : 'out'} size={14} className="go" />}
+      {go && <Icon name={it.copy ? 'copy' : it.setup ? 'chevron' : 'out'} size={14} className="go" />}
       {it.dismissable && onDismiss && (
         <span role="button" tabIndex={0} className="nope" title="Don't suggest this again"
           onClick={(e) => { e.stopPropagation(); onDismiss(it) }}><Icon name="x" size={13} /></span>

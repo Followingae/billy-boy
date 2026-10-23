@@ -60,11 +60,26 @@ function Touch-Billy($note) {
 Add-Type -Namespace Native -Name Shell -MemberDefinition @'
 [DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int state);
 '@ -ErrorAction SilentlyContinue
+Add-Type -Namespace Native -Name Win -MemberDefinition @'
+[DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int pid);
+'@ -ErrorAction SilentlyContinue
+# Full-screen apps that are work, not games: these never pause the runner.
+$WorkApps = @('Code', 'Cursor', 'chrome', 'msedge', 'firefox', 'brave', 'opera', 'explorer', 'WindowsTerminal',
+  'powershell', 'pwsh', 'cmd', 'Teams', 'ms-teams', 'slack', 'OUTLOOK', 'olk', 'EXCEL', 'WINWORD', 'POWERPNT',
+  'Notion', 'Figma', 'Claude', 'electron', 'Spotify', 'Zoom', 'mstsc', 'devenv', 'idea64', 'webstorm64')
 function Is-Gaming {
   $state = 0
   try { [void][Native.Shell]::SHQueryUserNotificationState([ref]$state) } catch { return $false }
-  # 2 = busy (a full-screen app), 3 = Direct3D full-screen (games), 4 = presentation mode
-  return ($state -eq 2 -or $state -eq 3 -or $state -eq 4)
+  # 3 = Direct3D exclusive full-screen: always a game. 4 = presentation mode.
+  if ($state -eq 3 -or $state -eq 4) { return $true }
+  # 2 = some full-screen window: borderless games report this, but so does a maximised editor
+  # or browser in full screen, so it only counts when the app in front is not a work app.
+  if ($state -ne 2) { return $false }
+  $fgPid = 0
+  try { [void][Native.Win]::GetWindowThreadProcessId([Native.Win]::GetForegroundWindow(), [ref]$fgPid) } catch { return $true }
+  $name = (Get-Process -Id $fgPid -ErrorAction SilentlyContinue).ProcessName
+  return -not ($name -and ($WorkApps -contains $name))
 }
 
 # ── run Claude headless, lowest priority ────────────────────────────────────────────────
