@@ -32,7 +32,7 @@ function Funnel({ funnel }) {
   )
 }
 
-function Row({ it, uid }) {
+function Row({ it, uid, onDismiss }) {
   const go = it.setup ? () => { window.billy.openRoom(`setup:${uid}:${it.setup}`); window.billy.closeCard() }
     : it.url ? () => window.billy.openUrl(it.url) : it.path ? () => window.billy.openPath(it.path) : null
   return (
@@ -44,6 +44,10 @@ function Row({ it, uid }) {
       </span>
       {it.meta && <span className="meta">{it.meta}</span>}
       {go && <Icon name={it.setup ? 'chevron' : 'out'} size={14} className="go" />}
+      {it.dismissable && onDismiss && (
+        <span role="button" tabIndex={0} className="nope" title="Don't suggest this again"
+          onClick={(e) => { e.stopPropagation(); onDismiss(it) }}><Icon name="x" size={13} /></span>
+      )}
     </button>
   )
 }
@@ -106,7 +110,7 @@ function Card() {
         {items.length > 0 && (
           <div className="list">
             {r.funnel || r.goal ? <h4>Waiting on you</h4> : null}
-            {items.slice(0, 25).map((it, i) => <Row key={i} it={it} uid={face.uid} />)}
+            {items.slice(0, 25).map((it) => <Row key={it.key || it.title} it={it} uid={face.uid} onDismiss={(x) => act(`dismiss:${x.key}`)} />)}
           </div>
         )}
         {r.inbox?.items?.length > 0 && (

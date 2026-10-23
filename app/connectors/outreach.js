@@ -17,6 +17,12 @@ async function read(src) {
   return JSON.parse(fs.readFileSync(src, 'utf8'))
 }
 
+/** A suggestion's identity: the agent's own id if it gave one, else who it is about. */
+const keyOf = (it) => String(it.id || it.who || it.title || '').trim().toLowerCase()
+function readDismissed(dir) {
+  try { return JSON.parse(fs.readFileSync(path.join(dir, 'dismissed.json'), 'utf8').replace(/^\uFEFF/, '')).dismissed || [] } catch { return [] }
+}
+
 function ago(iso) {
   const h = (Date.now() - new Date(iso)) / 3_600_000
   if (!Number.isFinite(h)) return ''
@@ -44,13 +50,31 @@ module.exports = {
     { key: 'stale', label: 'Warn if not updated for (hours)', placeholder: '30', type: 'number' },
   ],
   kit: true,
+  async action(ctx, id) {
+    if (!id.startsWith('dismiss:')) return
+    const src = ctx.config.source
+    if (!src || /^https:\/\//.test(src)) return
+    const dir = path.dirname(src)
+    const key = id.slice('dismiss:'.length)
+    const list = readDismissed(dir)
+    if (list.some((d) => d.key === key)) return
+    let title = key
+    try { title = (JSON.parse(fs.readFileSync(src, 'utf8').replace(/^\uFEFF/, '')).items || []).find((it) => keyOf(it) === key)?.title || key } catch {}
+    list.push({ key, title, at: new Date().toISOString() })
+    fs.writeFileSync(path.join(dir, 'dismissed.json'), JSON.stringify({ note: 'Suggestions the user rejected in Billy. Never suggest these again and never contact the people in them.', dismissed: list }, null, 2))
+  },
   async poll(ctx) {
     const src = ctx.config.source
     if (!src) throw new Error('Choose the state file your agent writes.')
     const s = await read(src)
     // A kit's items can point at files beside the state file ("facts.md").
     const base = /^https:\/\//.test(src) ? null : path.dirname(src)
-    const items = (s.items || []).map((it) => (it.path && base && !path.isAbsolute(it.path) ? { ...it, path: path.join(base, it.path) } : it))
+    const dismissed = base ? readDismissed(base) : []
+    const gone = new Set(dismissed.map((d) => d.key))
+    const items = (s.items || [])
+      .map((it) => (it.path && base && !path.isAbsolute(it.path) ? { ...it, path: path.join(base, it.path) } : it))
+      .map((it) => ({ ...it, key: keyOf(it), dismissable: !!base && !it.setup }))
+      .filter((it) => !gone.has(it.key))
     const staleH = Number(ctx.config.stale) || 30
     const stale = s.updated_at && (Date.now() - new Date(s.updated_at)) / 3_600_000 > staleH
     if (stale) items.unshift({ title: 'The agent has not run lately', subtitle: `Last ${ago(s.updated_at)}. Check its schedule.`, urgency: 'warn' })

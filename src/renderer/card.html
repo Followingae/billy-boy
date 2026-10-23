@@ -56,6 +56,9 @@
   .txt em { font-style: normal; color: var(--billy); font-weight: 600; }
   .meta { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
   .go { color: var(--ink-3); flex: none; }
+  .nope { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; color: var(--ink-3); flex: none; opacity: 0; cursor: pointer; }
+  .row:hover .nope { opacity: 1; } .nope:hover { background: #fdecea; color: var(--alert); }
+  .row:disabled { opacity: 1; }
   .rule { margin: 0; font-size: 11px; color: var(--ink-3); text-align: center; }
   ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 </style>
