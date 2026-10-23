@@ -67,6 +67,59 @@ function fanLayout(n, dock, anchor) {
   return out
 }
 
+/** How wide a face grows when hovered, and where its pill sits. */
+function pillFor(f, p, anchor) {
+  const label = f.error && !f.result ? 'Needs setup' : f.result?.caption || f.name
+  const value = f.result?.value || ''
+  const w = Math.min(210, Math.max(140, 74 + Math.max(label.length, f.name.length) * 6.4 + value.length * 8))
+  const dir = p.x >= anchor.x - 1 ? 1 : -1
+  let x = dir > 0 ? p.x - 23 : p.x + 23 - w
+  x = Math.min(Math.max(x, 6), W - 6 - w)
+  return { x, y: p.y - 23, w, h: 46, dir, label, value }
+}
+
+/*
+ * Make room. When a face stretches into a pill, every other droplet is pushed clear of it
+ * (and of Billy, and of each other), then springs to its new spot; the goo bridges them for
+ * a moment as they slide past, which is the "moving out of the way" look. A weak pull back
+ * toward each droplet's home keeps the ring's shape. A few dozen relaxation passes on at
+ * most a dozen circles: well under a millisecond.
+ */
+function makeRoom(points, hoverIdx, pill, anchor, padR) {
+  const GAP = BLUR * 2.6, R = 23
+  const pts = points.map((p) => ({ x: p.x, y: p.y, hx: p.x, hy: p.y }))
+  if (hoverIdx < 0 || !pill) return pts
+  const lo = R + 4, hi = W - R - 4
+  for (let it = 0; it < 60; it++) {
+    pts.forEach((a, i) => {
+      if (i === hoverIdx) return
+      // clear of the pill (a rectangle with round ends; a rectangle is close enough)
+      const nx = Math.min(Math.max(a.x, pill.x), pill.x + pill.w), ny = Math.min(Math.max(a.y, pill.y), pill.y + pill.h)
+      let dx = a.x - nx, dy = a.y - ny, d = Math.hypot(dx, dy)
+      const need = R + GAP
+      if (d < 0.01) {
+        // The centre is inside the pill: leave by the nearest side, then clear it.
+        const out = [[a.x - pill.x, -1, 0], [pill.x + pill.w - a.x, 1, 0], [a.y - pill.y, 0, -1], [pill.y + pill.h - a.y, 0, 1]]
+          .sort((m, n) => m[0] - n[0])[0]
+        a.x += out[1] * (out[0] + need); a.y += out[2] * (out[0] + need)
+      } else if (d < need) { a.x += (dx / d) * (need - d); a.y += (dy / d) * (need - d) }
+      // clear of Billy
+      dx = a.x - anchor.x; dy = a.y - anchor.y; d = Math.hypot(dx, dy) || 1
+      if (d < padR + R + GAP) { a.x = anchor.x + (dx / d) * (padR + R + GAP); a.y = anchor.y + (dy / d) * (padR + R + GAP) }
+      // clear of each other
+      pts.forEach((b, j) => {
+        if (j <= i || j === hoverIdx) return
+        const ex = b.x - a.x, ey = b.y - a.y, e = Math.hypot(ex, ey) || 1, min = 2 * R + GAP
+        if (e < min) { const k = (min - e) / 2 / e; a.x -= ex * k; a.y -= ey * k; b.x += ex * k; b.y += ey * k }
+      })
+      // a gentle pull home, and stay on screen
+      a.x += (a.hx - a.x) * 0.04; a.y += (a.hy - a.y) * 0.04
+      a.x = Math.min(Math.max(a.x, lo), hi); a.y = Math.min(Math.max(a.y, lo), hi)
+    })
+  }
+  return pts
+}
+
 /** The strip that melts Billy into the edge or corner he is stuck to. */
 function meltFor(dock, anchor, strength) {
   if (!dock || dock.mode === 'float' || strength <= 0) return null
@@ -238,6 +291,9 @@ function Billy() {
   const sleeping = !hop && !open && (tucked || quietNow(st.quiet)) && worst !== 'alert'
 
   const fan = fanLayout(faces.length, dock, anchor)
+  const hoverIdx = open && hover ? faces.findIndex((f) => f.uid === hover) : -1
+  const pill = hoverIdx >= 0 && fan[hoverIdx] ? pillFor(faces[hoverIdx], fan[hoverIdx], anchor) : null
+  const spots = makeRoom(fan, pill ? hoverIdx : -1, pill, anchor, S.pad / 2)
 
   // ── hit testing: the window is click-through except over Billy and his droplets ───────
   const overRef = useRef(false)
@@ -325,28 +381,37 @@ function Billy() {
       )}
 
       {faces.map((f, i) => {
-        const p = open ? fan[i] : null          // more faces than fit stay tucked in Billy (right-click lists all)
+        const home = open ? spots[i] : null      // more faces than fit stay tucked in Billy (right-click lists all)
         const value = f.result?.value || ''
         const u = urgentOf(f)
-        const lit = !!p
+        const isHover = !!home && i === hoverIdx && !!pill
+        const x = isHover ? pill.x : (home || anchor).x - S.icon / 2
+        const y = isHover ? pill.y : (home || anchor).y - S.icon / 2
         return (
-          <Liquid.Item key={f.uid} x={(p || anchor).x - S.icon / 2} y={(p || anchor).y - S.icon / 2} scale={lit ? 1 : 0.3}
-            transition={lit ? { stiffness: 380, damping: 19, mass: 1 } : 'snappy'} delay={lit ? 30 + i * 32 : 0}
-            style={{ position: 'absolute', left: 0, top: 0, zIndex: 2 }}>
+          <Liquid.Item key={f.uid} x={x} y={y} scale={home ? 1 : 0.3}
+            transition={home ? { stiffness: 340, damping: 21, mass: 1 } : 'snappy'} delay={home && !pill ? 30 + i * 32 : 0}
+            style={{ position: 'absolute', left: 0, top: 0, zIndex: isHover ? 5 : 2 }}>
             <button
-              data-hit={lit ? '' : undefined}
-              className={`face ${lit ? '' : 'hidden'} ${hover && hover !== f.uid ? 'dim' : ''}`}
-              style={{ width: S.icon, height: S.icon, '--u': URGENT[u] }}
+              data-hit={home ? '' : undefined}
+              className={`face ${isHover ? 'wide' : ''} ${isHover && pill.dir < 0 ? 'rtl' : ''} ${home ? '' : 'hidden'} ${pill && !isHover ? 'dim' : ''}`}
+              style={{ width: isHover ? pill.w : S.icon, height: S.icon, '--u': URGENT[u] }}
               onMouseEnter={() => setHover(f.uid)}
+              onMouseLeave={() => setHover((h) => (h === f.uid ? null : h))}
               onClick={() => clickFace(f)}
               onContextMenu={(e) => { e.preventDefault(); window.billy.menu(f.uid) }}
               aria-label={`${f.name}: ${value} ${f.result?.caption || ''}`}
             >
               <span className="glyph">
                 {f.result?.art ? <img src={f.result.art} alt="" /> : <Icon name={f.icon} size={19} />}
-                {u !== 'calm' && <i className="dot" />}
+                {u !== 'calm' && !isHover && <i className="dot" />}
               </span>
-              {value && value.length <= 3 && f.type !== 'volume' && <span className="count">{value}</span>}
+              {isHover && (
+                <span className="read">
+                  <b>{value ? <span className="v">{value}</span> : null}{f.name}</b>
+                  <small>{pill.label}</small>
+                </span>
+              )}
+              {!isHover && value && value.length <= 3 && f.type !== 'volume' && <span className="count">{value}</span>}
             </button>
           </Liquid.Item>
         )
@@ -395,46 +460,9 @@ function Billy() {
           />
       </div>
 
-      {open && hover && (() => {
-        const i = faces.findIndex((f) => f.uid === hover)
-        const f = faces[i], p = fan[i]
-        if (!f || !p) return null
-        return <Readout key={f.uid} f={f} p={p} anchor={anchor} u={urgentOf(f)} onLeave={() => setHover(null)}
-          onClick={() => clickFace(f)} onMenu={() => window.billy.menu(f.uid)} />
-      })()}
     </Liquid>
   )
 }
 
-/** A hovered face stretches into a pill that reads out. It is its own liquid group, so it
- *  floats over its neighbours instead of melting into them. */
-function Readout({ f, p, anchor, u, onLeave, onClick, onMenu }) {
-  const label = f.error && !f.result ? 'Needs setup' : f.result?.caption || f.name
-  const value = f.result?.value || ''
-  const full = Math.min(250, Math.max(150, 78 + Math.max(label.length, f.name.length) * 6.6 + value.length * 8))
-  const [w, setW] = useState(46)
-  useEffect(() => { const id = requestAnimationFrame(() => setW(full)); return () => cancelAnimationFrame(id) }, [full])
-  const dir = p.x >= anchor.x - 1 ? 1 : -1
-  let x = dir > 0 ? p.x - 23 : p.x + 23 - w
-  x = Math.min(Math.max(x, 6), W - 6 - w)
-  return (
-    <Liquid className="readout" blur={BLUR} contrast={22} fill="var(--surface)"
-      shadow="0 14px 30px rgba(48, 32, 18, .24), 0 2px 6px rgba(48, 32, 18, .14)" filterPadding={30}
-      style={{ position: 'absolute', inset: 0, width: W, height: W }}>
-      <Liquid.Item x={x} y={p.y - 23} transition="snappy" style={{ position: 'absolute', left: 0, top: 0 }}>
-        <button data-hit className={`face wide ${dir < 0 ? 'rtl' : ''}`} style={{ width: w, height: 46, '--u': URGENT[u] }}
-          onMouseLeave={onLeave} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu() }}>
-          <span className="glyph">{f.result?.art ? <img src={f.result.art} alt="" /> : <Icon name={f.icon} size={19} />}</span>
-          {w === full && (
-            <span className="read">
-              <b>{value ? <span className="v">{value}</span> : null}{f.name}</b>
-              <small>{label}</small>
-            </span>
-          )}
-        </button>
-      </Liquid.Item>
-    </Liquid>
-  )
-}
 
 createRoot(document.getElementById('root')).render(<Billy />)

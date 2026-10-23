@@ -31,7 +31,9 @@ const DEFAULTS = {
 function init(app, safeStorage) {
   dir = app.getPath('userData')
   safe = safeStorage
-  try { settings = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')) } }
+  // replace(BOM): a settings file saved by Windows tools can start with one, and JSON.parse
+  // would then fail and Billy would start from defaults, forgetting everything.
+  try { settings = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8').replace(/^﻿/, '')) } }
   catch { settings = structuredClone(DEFAULTS) }
   try {
     const raw = fs.readFileSync(path.join(dir, 'secrets.bin'))
