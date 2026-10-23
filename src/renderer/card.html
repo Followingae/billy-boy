@@ -13,12 +13,12 @@
     animation: in 260ms cubic-bezier(.2, 1.4, .4, 1); transform-origin: 30% 50%; }
   @keyframes in { from { opacity: 0; transform: scale(.94) } to { opacity: 1; transform: none } }
   header { display: flex; align-items: center; gap: 10px; }
-  .ic { width: 36px; height: 36px; border-radius: 12px; background: var(--paper); display: grid; place-items: center; color: var(--u); flex: none; overflow: hidden; }
+  .ic { width: 36px; height: 36px; border-radius: 12px; background: var(--paper); display: grid; place-items: center; color: var(--billy); flex: none; overflow: hidden; }
   .ic img { width: 100%; height: 100%; object-fit: cover; }
   .h { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .name { font-weight: 700; font-size: 14px; }
   .cap { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .value { font-size: 26px; font-weight: 750; letter-spacing: -.5px; color: var(--u); font-variant-numeric: tabular-nums; }
+  .value { font-size: 26px; font-weight: 750; letter-spacing: -.5px; color: var(--billy); font-variant-numeric: tabular-nums; }
   .x { all: unset; cursor: pointer; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: var(--ink-3); }
   .x:hover { background: var(--paper); color: var(--ink); }
   .err { display: flex; gap: 10px; align-items: center; background: #fff4e0; border-radius: 12px; padding: 9px 10px; font-size: 12.5px; color: #6b4a00; }
@@ -28,12 +28,12 @@
   .goal-top b { color: var(--ink); font-variant-numeric: tabular-nums; }
   .bar { height: 8px; background: var(--paper); border-radius: 99px; overflow: hidden; }
   .bar.thin { height: 4px; }
-  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 400ms; }
+  .bar i { display: block; height: 100%; background: var(--billy); border-radius: 99px; transition: width 400ms; }
   .funnel { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
   .stage-col { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
   .col { height: 38px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
-  .col i { width: 70%; background: var(--ink); opacity: .85; border-radius: 6px 6px 3px 3px; transition: height 400ms; }
-  .stage-col:last-child .col i { background: var(--accent); opacity: 1; }
+  .col i { width: 70%; background: color-mix(in oklab, var(--billy) 38%, var(--paper)); opacity: 1; border-radius: 6px 6px 3px 3px; transition: height 400ms; }
+  .stage-col:last-child .col i { background: var(--billy); opacity: 1; }
   .stage-col b { font-size: 13px; font-variant-numeric: tabular-nums; }
   .stage-col small { font-size: 10px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .actions { display: flex; gap: 8px; justify-content: center; }
@@ -53,7 +53,7 @@
   .txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .txt b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txt small { font-size: 11.5px; color: var(--ink-2); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .txt em { font-style: normal; color: var(--accent-ink); font-weight: 600; }
+  .txt em { font-style: normal; color: var(--billy); font-weight: 600; }
   .meta { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
   .go { color: var(--ink-3); flex: none; }
   .rule { margin: 0; font-size: 11px; color: var(--ink-3); text-align: center; }

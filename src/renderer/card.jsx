@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Icon } from './icons'
+import { toneOf } from './tone'
 
 const URGENT = { calm: 'var(--ink)', warn: 'var(--warn)', alert: 'var(--alert)' }
 
@@ -69,7 +70,7 @@ function Card() {
   return (
     <div className="wrap" onMouseLeave={() => { leave.current = setTimeout(() => window.billy.closeCard(), 1600) }}
       onMouseEnter={() => clearTimeout(leave.current)}>
-      <div ref={ref} className="card" style={{ '--u': URGENT[u] }}>
+      <div ref={ref} className="card" style={{ '--u': URGENT[u], '--billy': toneOf(data.color) }}>
         <header>
           <span className="ic">{r.art ? <img src={r.art} alt="" /> : <Icon name={face.icon} size={18} />}</span>
           <div className="h">

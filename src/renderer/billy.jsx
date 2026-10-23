@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Liquid } from 'liquid-gooey'
 import { BotAvatar } from 'bot-avatars'
 import { Icon } from './icons'
+import { toneOf } from './tone'
 
 /*
  * Billy, and the faces that drip out of him.
@@ -369,7 +370,7 @@ function Billy() {
       blur={BLUR} contrast={22} fill="var(--surface)"
       shadow="0 16px 34px rgba(48, 32, 18, .20), 0 3px 8px rgba(48, 32, 18, .14)"
       filterPadding={40}
-      style={{ width: W, height: W }}
+      style={{ width: W, height: W, '--billy': toneOf(st.look.color || '#ff8a3d') }}
     >
       {open && <div data-hit className="zone" style={{ left: anchor.x, top: anchor.y }} onContextMenu={(e) => { e.preventDefault(); window.billy.menu(null) }} />}
 
@@ -403,7 +404,7 @@ function Billy() {
             >
               <span className="glyph">
                 {f.result?.art ? <img src={f.result.art} alt="" /> : <Icon name={f.icon} size={19} />}
-                {u !== 'calm' && !isHover && <i className="dot" />}
+                {u !== 'calm' && !isHover && !(value && value.length <= 3 && f.type !== 'volume') && <i className="dot" />}
               </span>
               {isHover && (
                 <span className="read">
@@ -411,7 +412,7 @@ function Billy() {
                   <small>{pill.label}</small>
                 </span>
               )}
-              {!isHover && value && value.length <= 3 && f.type !== 'volume' && <span className="count">{value}</span>}
+              {!isHover && value && value.length <= 3 && f.type !== 'volume' && <span className={`count ${u}`}>{value}</span>}
             </button>
           </Liquid.Item>
         )

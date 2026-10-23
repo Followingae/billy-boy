@@ -233,7 +233,7 @@ function showCard(uid) {
   cardFace = uid
   const f = faces.snapshot().find((s) => s.uid === uid)
   if (!f) return
-  card.webContents.send('card', { face: f, side: cardSide() })
+  card.webContents.send('card', { face: f, side: cardSide(), color: store.get().look?.color })
   if (!card.isVisible()) { card.showInactive() }
   placeCard()
   billy.webContents.send('card-open', uid)
@@ -250,7 +250,7 @@ function pushAll() {
   const snap = faces.snapshot()
   const s = store.get()
   billy && billy.webContents.send('state', { faces: snap, look: s.look, pinned: s.pinned, quiet: s.quiet, sound: s.sound !== false })
-  if (card && cardFace) { const f = snap.find((x) => x.uid === cardFace); if (f) card.webContents.send('card', { face: f, side: cardSide() }) }
+  if (card && cardFace) { const f = snap.find((x) => x.uid === cardFace); if (f) card.webContents.send('card', { face: f, side: cardSide(), color: store.get().look?.color }) }
   room && room.webContents.send('room-state', roomState())
 }
 
