@@ -441,6 +441,41 @@ ipcMain.handle('install-kit', async (_e, uid, template) => {
   shell.openPath(dest)
   return { ok: true, dir: dest }
 })
+// ── guided outreach setup ──────────────────────────────────────────────────────────────
+const outreach = require('./outreach_setup')
+ipcMain.handle('outreach-setup-get', (_e, uid) => {
+  const face = store.get().faces.find((f) => f.uid === uid)
+  if (!face || face.type !== 'outreach') return null
+  const kind = face.config?.kind === 'sales' ? 'sales' : 'round'
+  const answers = face.config?.answers || {}
+  const source = face.config?.source
+  return {
+    kind, answers, steps: outreach.STEPS[kind], confirmed: !!face.config?.confirmed, managed: !!face.config?.managed,
+    folder: source ? path.dirname(source) : outreach.defaultFolder(app, kind, answers.company),
+    command: 'claude -p "Follow PLAYBOOK.md in this folder for one run."',
+  }
+})
+ipcMain.handle('outreach-setup-save', (_e, uid, { answers, folder, confirmed }) => {
+  try {
+    const face = store.get().faces.find((f) => f.uid === uid)
+    if (!face || face.type !== 'outreach') return { ok: false, error: 'Not an outreach face' }
+    const kind = face.config?.kind === 'sales' ? 'sales' : 'round'
+    const dir = folder || outreach.defaultFolder(app, kind, answers.company)
+    const kitDir = path.join(__dirname, '..', 'examples', 'outreach', kind === 'round' ? 'investor-round' : 'sales-outreach')
+    const source = outreach.apply({ kitDir, folder: dir, kind, answers, confirmed, managed: !!face.config?.managed })
+    store.set({ faces: store.get().faces.map((f) => (f.uid === uid
+      ? { ...f, config: { ...(f.config || {}), kind, answers, confirmed: !!confirmed, managed: true, source } } : f)) })
+    faces.restart(); pushAll()
+    return { ok: true, folder: dir }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+ipcMain.handle('pick-folder', async () => {
+  const r = await dialog.showOpenDialog(room, { properties: ['openDirectory', 'createDirectory'] })
+  return r.canceled ? null : r.filePaths[0]
+})
+ipcMain.on('open-folder', (_e, p) => { if (p && fs.existsSync(p)) shell.openPath(p) })
+ipcMain.on('copy-text', (_e, t) => { require('electron').clipboard.writeText(String(t || '')) })
+
 ipcMain.on('open-plugins', () => { fs.mkdirSync(faces.pluginDir(), { recursive: true }); shell.openPath(faces.pluginDir()) })
 ipcMain.on('reload-plugins', () => { faces.init({}); pushAll() })
 ipcMain.on('room-close', () => room && room.close())

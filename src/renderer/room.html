@@ -114,6 +114,34 @@
   .tips ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; line-height: 1.9; }
   .tips b { color: var(--ink); }
   .plugins .copy { margin-bottom: 14px; }
+  .setup-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 18px; background: linear-gradient(140deg, #fff3e8, #fffaf3); box-shadow: inset 0 0 0 1px rgba(255,138,61,.25); }
+  .sc-top { display: flex; gap: 14px; align-items: flex-start; }
+  .sc-top .grow { display: flex; flex-direction: column; gap: 4px; }
+  .sc-top b { font-size: 15px; } .sc-top span { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; word-break: break-word; }
+  .sc-ic { width: 42px; height: 42px; border-radius: 13px; background: var(--surface); display: grid; place-items: center; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  details.adv { font-size: 13px; color: var(--ink-2); }
+  details.adv summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
+  details.adv[open] { display: flex; flex-direction: column; gap: 12px; }
+
+  .wizard { display: grid; grid-template-columns: 200px 1fr; gap: 30px; min-height: 100%; animation: wz 260ms cubic-bezier(.2, 1.2, .4, 1); }
+  @keyframes wz { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  .wizard aside { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; align-self: start; min-height: 440px; }
+  .wz-title { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink-3); margin: 4px 0 10px; }
+  .wz-step { all: unset; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-3); }
+  .wz-step i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; background: var(--paper); color: var(--ink-2); flex: none; }
+  .wz-step.on { color: var(--ink); background: var(--paper); } .wz-step.on i { background: var(--ink); color: var(--surface); }
+  .wz-step.done { color: var(--ink-2); } .wz-step.done i { background: var(--good); color: #fff; }
+  .wizard section { display: flex; flex-direction: column; gap: 6px; max-width: 620px; }
+  .wz-grid { display: flex; flex-wrap: wrap; gap: 14px 16px; margin: 6px 0 14px; }
+  .wz-grid .field { flex: 1 1 100%; } .wz-grid .field.half { flex: 1 1 calc(50% - 8px); }
+  .field em { color: var(--accent-ink); font-style: normal; }
+  textarea { font: inherit; font-size: 13.5px; padding: 10px 12px; border-radius: 12px; border: 0; background: var(--paper); color: var(--ink); outline: none; box-shadow: inset 0 0 0 1px var(--line); resize: vertical; line-height: 1.5; }
+  textarea:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+  .confirm { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 14px; background: var(--paper); margin: 10px 0 14px; cursor: pointer; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+  .confirm b { color: var(--ink); }
+  .how { margin: 6px 0 18px; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+  .how b { color: var(--ink); } .how .copy { margin-top: 8px; }
+  .how code, .sub code { background: var(--paper); padding: 1px 6px; border-radius: 6px; }
   ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 </style>
 </head>

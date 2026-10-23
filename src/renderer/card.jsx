@@ -32,8 +32,9 @@ function Funnel({ funnel }) {
   )
 }
 
-function Row({ it }) {
-  const go = it.url ? () => window.billy.openUrl(it.url) : it.path ? () => window.billy.openPath(it.path) : null
+function Row({ it, uid }) {
+  const go = it.setup ? () => { window.billy.openRoom(`setup:${uid}:${it.setup}`); window.billy.closeCard() }
+    : it.url ? () => window.billy.openUrl(it.url) : it.path ? () => window.billy.openPath(it.path) : null
   return (
     <button className={`row ${go ? 'link' : ''}`} onClick={go || undefined} disabled={!go}>
       {it.art ? <img className="art" src={it.art} alt="" /> : <i className={`u ${it.urgency || 'calm'}`} />}
@@ -42,7 +43,7 @@ function Row({ it }) {
         {(it.subtitle || it.hint) && <small>{it.subtitle}{it.hint ? <em>{it.subtitle ? ' · ' : ''}{it.hint}</em> : null}</small>}
       </span>
       {it.meta && <span className="meta">{it.meta}</span>}
-      {go && <Icon name="out" size={14} className="go" />}
+      {go && <Icon name={it.setup ? 'chevron' : 'out'} size={14} className="go" />}
     </button>
   )
 }
@@ -105,13 +106,13 @@ function Card() {
         {items.length > 0 && (
           <div className="list">
             {r.funnel || r.goal ? <h4>Waiting on you</h4> : null}
-            {items.slice(0, 25).map((it, i) => <Row key={i} it={it} />)}
+            {items.slice(0, 25).map((it, i) => <Row key={i} it={it} uid={face.uid} />)}
           </div>
         )}
         {r.inbox?.items?.length > 0 && (
           <div className="list">
             <h4>Inbox · {r.inbox.count} unread</h4>
-            {r.inbox.items.slice(0, 6).map((it, i) => <Row key={i} it={it} />)}
+            {r.inbox.items.slice(0, 6).map((it, i) => <Row key={i} it={it} uid={face.uid} />)}
           </div>
         )}
         {face.type === 'outreach' && <p className="rule">Billy never sends. Open a draft, read it, send it yourself.</p>}

@@ -39,7 +39,7 @@ function Field({ f, value, onChange }) {
   )
 }
 
-function FaceEditor({ face, conn, pinned, onDone }) {
+function FaceEditor({ face, conn, pinned, onDone, onSetup }) {
   const [vals, setVals] = useState({})
   const [msg, setMsg] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -88,16 +88,19 @@ function FaceEditor({ face, conn, pinned, onDone }) {
         ))}
       </div>
 
-      {conn?.kit && !vals.source && (
-        <div className="kits">
-          <div><b>Start from a kit</b><span>A playbook your agent follows, a facts sheet, and the file Billy reads. Billy never sends: your agent writes drafts, you press send.</span></div>
-          <button className="ghost" onClick={() => kit('investor-round')}><Icon name="rocket" size={15} />Investor round</button>
-          <button className="ghost" onClick={() => kit('sales-outreach')}><Icon name="handshake" size={15} />Sales outreach</button>
-        </div>
-      )}
-
-      {(conn?.fields || []).map((f) => (
-        <Field key={f.key} f={f} value={vals[f.key]} onChange={(v) => setVals((s) => ({ ...s, [f.key]: v }))} />
+      {conn?.id === 'outreach' ? (
+        <>
+          <OutreachPanel face={face} onSetup={onSetup} />
+          <details className="adv">
+            <summary>Advanced: point at a folder you run yourself</summary>
+            {(conn?.fields || []).map((f) => (
+              <Field key={f.key} f={f} value={vals[f.key]} onChange={(v) => setVals((x) => ({ ...x, [f.key]: v }))} />
+            ))}
+            <div className="ed-actions"><button className="ghost" disabled={busy} onClick={save}>Save</button></div>
+          </details>
+        </>
+      ) : (conn?.fields || []).map((f) => (
+        <Field key={f.key} f={f} value={vals[f.key]} onChange={(v) => setVals((x) => ({ ...x, [f.key]: v }))} />
       ))}
       {conn?.copy && (
         <div className="copy"><span>Redirect URI</span><code>{conn.copy}</code>
@@ -105,7 +108,7 @@ function FaceEditor({ face, conn, pinned, onDone }) {
       )}
 
       <div className="ed-actions">
-        {conn?.fields?.length > 0 && <button className="primary" disabled={busy} onClick={save}>{busy ? 'Working…' : 'Save'}</button>}
+        {conn?.fields?.length > 0 && conn?.id !== 'outreach' && <button className="primary" disabled={busy} onClick={save}>{busy ? 'Working…' : 'Save'}</button>}
         {conn?.canConnect && <button className="primary alt" disabled={busy} onClick={connect}><Icon name="link" size={15} />Connect</button>}
         {msg && <span className={`msg ${msg.ok ? 'ok' : 'bad'}`}>{msg.text}</span>}
         <span className="grow" />
@@ -115,15 +118,156 @@ function FaceEditor({ face, conn, pinned, onDone }) {
   )
 }
 
+function OutreachPanel({ face, onSetup }) {
+  const [info, setInfo] = useState(null)
+  useEffect(() => { window.billy.outreachGet(face.uid).then(setInfo) }, [face.uid, face.at])
+  if (!info) return null
+  const round = info.kind === 'round'
+  return (
+    <div className="setup-card">
+      <div className="sc-top">
+        <span className="sc-ic"><Icon name={round ? 'rocket' : 'handshake'} size={20} /></span>
+        <div className="grow">
+          <b>{info.managed ? (round ? 'Your round is set up' : 'Your sales outreach is set up') : (round ? 'Set up your investor round' : 'Set up your sales outreach')}</b>
+          <span>{info.managed
+            ? `${info.confirmed ? 'Facts confirmed.' : 'Facts not confirmed yet, so no new outreach.'} Folder: ${info.folder}`
+            : "A few short questions. Billy writes your agent's playbook and facts for you. Nothing is sent: your agent writes drafts, you send them."}</span>
+        </div>
+      </div>
+      <div className="row-btns">
+        <button className="primary" onClick={() => onSetup(face.uid, 'you')}>{info.managed ? 'Edit answers' : 'Set this up'}</button>
+        {info.managed && <button className="ghost" onClick={() => onSetup(face.uid, 'agent')}><Icon name="sparkles" size={15} />Run your agent</button>}
+        {info.managed && <button className="ghost" onClick={() => window.billy.openFolder(info.folder)}><Icon name="folder" size={15} />Open folder</button>}
+      </div>
+    </div>
+  )
+}
+
+function WizField({ f, value, onChange }) {
+  const common = { value: value ?? '', onChange: (e) => onChange(e.target.value), placeholder: f.placeholder || '', spellCheck: false }
+  return (
+    <label className={`field ${f.half ? 'half' : ''}`}>
+      <span className="lbl">{f.label}{f.required && <em> *</em>}</span>
+      {f.type === 'textarea' ? <textarea rows={3} {...common} />
+        : f.type === 'select' ? <select {...common}>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
+        : <input type={f.type === 'date' ? 'date' : 'text'} inputMode={f.type === 'number' ? 'decimal' : undefined} {...common} />}
+      {f.help && <span className="help">{f.help}</span>}
+    </label>
+  )
+}
+
+function Wizard({ uid, start, onClose }) {
+  const [info, setInfo] = useState(null)
+  const [a, setA] = useState({})
+  const [i, setI] = useState(0)
+  const [folder, setFolder] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState(null)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    window.billy.outreachGet(uid).then((d) => {
+      if (!d) return
+      setInfo(d); setFolder(d.folder); setConfirmed(d.confirmed)
+      const defaults = {}
+      d.steps.forEach((s) => s.fields.forEach((f) => { if (f.type === 'select') defaults[f.key] = f.options[0] }))
+      setA({ ...defaults, ...d.answers })
+      const n = d.steps.length
+      setI(start === 'agent' && d.managed ? n + 1 : start === 'facts' ? n : 0)
+    })
+  }, [uid])
+  if (!info) return null
+  const steps = info.steps, n = steps.length
+  const names = [...steps.map((s) => s.title), 'Confirm', 'Your agent']
+  const step = steps[i]
+  const missing = step ? step.fields.filter((f) => f.required && !String(a[f.key] || '').trim()) : []
+  const save = async () => {
+    setSaving(true); setErr(null)
+    const r = await window.billy.outreachSave(uid, { answers: a, folder, confirmed })
+    setSaving(false)
+    if (r.ok) { setFolder(r.folder); setI(n + 1) } else setErr(r.error)
+  }
+  return (
+    <div className="wizard">
+      <aside>
+        <b className="wz-title">{info.kind === 'round' ? 'Investor round' : 'Sales outreach'}</b>
+        {names.map((t, k) => (
+          <button key={t} className={`wz-step ${k === i ? 'on' : ''} ${k < i ? 'done' : ''}`} onClick={() => (k <= n || info.managed) && setI(k)}>
+            <i>{k < i ? <Icon name="ok" size={12} /> : k + 1}</i>{t}
+          </button>
+        ))}
+        <span className="grow" />
+        <button className="link" onClick={onClose}>Close</button>
+      </aside>
+      <section>
+        {step && (
+          <>
+            <h2>{step.title}</h2>
+            <p className="sub">{step.intro}</p>
+            <div className="wz-grid">{step.fields.map((f) => <WizField key={f.key} f={f} value={a[f.key]} onChange={(v) => setA((x) => ({ ...x, [f.key]: v }))} />)}</div>
+            <div className="ed-actions">
+              {i > 0 && <button className="ghost" onClick={() => setI(i - 1)}>Back</button>}
+              <span className="grow" />
+              {missing.length > 0 && <span className="msg bad">Fill {missing.map((f) => f.label.toLowerCase()).join(', ')}</span>}
+              <button className="primary" disabled={missing.length > 0} onClick={() => setI(i + 1)}>Next</button>
+            </div>
+          </>
+        )}
+        {i === n && (
+          <>
+            <h2>Confirm and save</h2>
+            <p className="sub">Billy writes your agent's folder: the playbook it follows, a facts sheet from your answers, and the file Billy reads.</p>
+            <label className="field"><span className="lbl">Folder</span>
+              <div className="inrow"><input type="text" value={folder} onChange={(e) => setFolder(e.target.value)} />
+                <button className="ghost" onClick={async () => { const d = await window.billy.pickFolder(); if (d) setFolder(d) }}><Icon name="folder" size={15} />Choose</button></div>
+            </label>
+            <label className="confirm">
+              <input type="checkbox" className="tog" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+              <span><b>These facts are right.</b> My agent may use them in new outreach. Until this is on, it only follows up with people already talking to me.</span>
+            </label>
+            <div className="ed-actions">
+              <button className="ghost" onClick={() => setI(i - 1)}>Back</button>
+              <span className="grow" />
+              {err && <span className="msg bad">{err}</span>}
+              <button className="primary alt" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
+            </div>
+          </>
+        )}
+        {i === n + 1 && (
+          <>
+            <h2>Your agent does the work</h2>
+            <p className="sub">Billy doesn't write or send email. An AI agent does the outreach by following the playbook in your folder: it finds {info.kind === 'round' ? 'investors' : 'buyers'}, researches them, and writes <b>drafts</b> in your mailbox. Billy shows you which ones to read and send.</p>
+            <ol className="how">
+              <li><b>Install Claude Code</b> (claude.com/claude-code) and connect your mail: type <code>/mcp</code> in it and pick Gmail or Outlook.</li>
+              <li><b>Run it once</b> in your folder and read what it did:
+                <div className="copy"><code>{info.command}</code>
+                  <button className="ghost" onClick={() => { window.billy.copyText(info.command); setCopied(true); setTimeout(() => setCopied(false), 1500) }}><Icon name={copied ? 'ok' : 'copy'} size={14} />{copied ? 'Copied' : 'Copy'}</button></div>
+              </li>
+              <li><b>Schedule it</b> when you trust it: in Claude Code type <code>/schedule</code> and ask for weekday mornings. Never give it permission to send.</li>
+            </ol>
+            <div className="ed-actions">
+              <button className="ghost" onClick={() => window.billy.openFolder(folder)}><Icon name="folder" size={15} />Open the folder</button>
+              <span className="grow" />
+              <button className="primary" onClick={onClose}>Done</button>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
 function Room() {
   const [st, setSt] = useState(null)
   const [section, setSection] = useState(() => (location.hash || '#faces').slice(1))
   const [sel, setSel] = useState(null)
+  const [wizard, setWizard] = useState(null)
   const dragUid = useRef(null)
   useEffect(() => { window.billy.roomState().then(setSt); return window.billy.onRoomState(setSt) }, [])
   useEffect(() => window.billy.onRoomSection(setSection), [])
   useEffect(() => {
     if (section.startsWith('face:')) { setSel(section.slice(5)); setSection('faces') }
+    if (section.startsWith('setup:')) { const [, uid, step] = section.split(':'); setSel(uid); setWizard({ uid, step }); setSection('faces') }
   }, [section])
   if (!st) return null
   const { catalog, faces, settings } = st
@@ -135,6 +279,7 @@ function Room() {
   const add = async (type, kind) => {
     const uid = await window.billy.faceAdd(type, kind)
     setSel(uid); setSection('faces')
+    if (type === 'outreach') setWizard({ uid, step: 'you' })
   }
   const drop = (target) => {
     const from = dragUid.current; dragUid.current = null
@@ -177,7 +322,8 @@ function Room() {
           </nav>
 
           <main>
-            {section === 'faces' && (
+            {wizard && section === 'faces' && <Wizard key={wizard.uid + wizard.step} uid={wizard.uid} start={wizard.step} onClose={() => setWizard(null)} />}
+            {section === 'faces' && !wizard && (
               <div className="faces">
                 <div className="facelist">
                   <h2>Faces</h2>
@@ -193,7 +339,7 @@ function Room() {
                   ))}
                   <button className="fi add" onClick={() => setSection('add')}><Icon name="plus" size={16} />Add a face</button>
                 </div>
-                {selected ? <FaceEditor face={selected} conn={conn(selected.type)} pinned={settings.pinned} onDone={() => setSel(null)} />
+                {selected ? <FaceEditor face={selected} conn={conn(selected.type)} pinned={settings.pinned} onDone={() => setSel(null)} onSetup={(uid, step) => setWizard({ uid, step })} />
                   : <div className="editor empty"><p>Add a face to get started.</p></div>}
               </div>
             )}

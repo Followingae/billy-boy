@@ -235,6 +235,16 @@ function Billy() {
   const [near, setNear] = useState(null)
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(null)
+  const intent = useRef({ enter: null, leave: null })
+  const hoverIn = (uid) => {
+    clearTimeout(intent.current.leave); clearTimeout(intent.current.enter)
+    intent.current.enter = setTimeout(() => setHover(uid), hover ? 60 : 140)
+  }
+  const hoverOut = (uid) => {
+    clearTimeout(intent.current.enter)
+    clearTimeout(intent.current.leave)
+    intent.current.leave = setTimeout(() => setHover((h) => (h === uid ? null : h)), 260)
+  }
   const [cardUid, setCardUid] = useState(null)
   const [squash, setSquash] = useState(1)
   const [hop, setHop] = useState(false)
@@ -286,7 +296,7 @@ function Billy() {
 
   const urgentOf = (f) => (f.error ? 'warn' : f.result?.urgency || 'calm')
   const worst = faces.reduce((w, f) => (urgentOf(f) === 'alert' ? 'alert' : urgentOf(f) === 'warn' && w !== 'alert' ? 'warn' : w), 'calm')
-  const pinned = faces.find((f) => f.uid === st.pinned) || faces.find((f) => urgentOf(f) === 'alert') || null
+  const pinned = faces.find((f) => f.uid === st.pinned) || null     // nothing ticked = no badge; the urgent dot still shows
   const playing = faces.some((f) => f.type === 'spotify' && f.result?.playing)
   const focusing = faces.some((f) => f.type === 'focus' && f.result?.focusing)
   const sleeping = !hop && !open && (tucked || quietNow(st.quiet)) && worst !== 'alert'
@@ -390,14 +400,15 @@ function Billy() {
         const y = isHover ? pill.y : (home || anchor).y - S.icon / 2
         return (
           <Liquid.Item key={f.uid} x={x} y={y} scale={home ? 1 : 0.3}
-            transition={home ? { stiffness: 340, damping: 21, mass: 1 } : 'snappy'} delay={home && !pill ? 30 + i * 32 : 0}
+            transition={!home ? 'snappy' : pill ? { stiffness: 150, damping: 20, mass: 1 } : { stiffness: 230, damping: 20, mass: 1 }}
+            delay={home && !pill ? 40 + i * 38 : 0}
             style={{ position: 'absolute', left: 0, top: 0, zIndex: isHover ? 5 : 2 }}>
             <button
               data-hit={home ? '' : undefined}
               className={`face ${isHover ? 'wide' : ''} ${isHover && pill.dir < 0 ? 'rtl' : ''} ${home ? '' : 'hidden'} ${pill && !isHover ? 'dim' : ''}`}
               style={{ width: isHover ? pill.w : S.icon, height: S.icon, '--u': URGENT[u] }}
-              onMouseEnter={() => setHover(f.uid)}
-              onMouseLeave={() => setHover((h) => (h === f.uid ? null : h))}
+              onMouseEnter={() => hoverIn(f.uid)}
+              onMouseLeave={() => hoverOut(f.uid)}
               onClick={() => clickFace(f)}
               onContextMenu={(e) => { e.preventDefault(); window.billy.menu(f.uid) }}
               aria-label={`${f.name}: ${value} ${f.result?.caption || ''}`}
