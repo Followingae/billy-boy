@@ -162,6 +162,9 @@ try {
   $mode = 'check'
   if ((Age-Min $st.last_deep) -gt 30 * 60 -or ((Age-Min $st.last_deep) -gt 20 * 60 -and ($hour -ge 1 -and $hour -lt 7))) { $mode = 'deep' }
   elseif ((Age-Min $st.last_full) -gt 30 -and (Age-Min $st.last_check) -gt 30) { $mode = 'full' }   # back after the PC was off
+  # Every working morning (Mon to Fri, from 7:00) one full run drafts the day's new outreach,
+  # so first touches don't wait for the night or for something to arrive.
+  elseif ($now.DayOfWeek -ge 1 -and $now.DayOfWeek -le 5 -and $hour -ge 7 -and (-not $st.last_full -or ([datetime]$st.last_full).Date -lt $now.Date -or ([datetime]$st.last_full).Hour -lt 7)) { $mode = 'full' }
 
   $since = if ($st.last_check) { $st.last_check } else { (Get-Date).AddDays(-3).ToString('o') }
   $stamp = $now.ToString('yyyy-MM-dd_HHmm')
