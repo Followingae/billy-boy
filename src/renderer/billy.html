@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>Billy</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  html, body { width: 420px; height: 420px; overflow: hidden; background: transparent; user-select: none; }
+  #root, .stage { width: 420px; height: 420px; }
+  .stage { position: relative; }
+  .zone { position: absolute; width: 440px; height: 440px; margin: -220px 0 0 -220px; border-radius: 50%; }
+  .blob { background: transparent; }
+  .pad { display: grid; place-items: center; border-radius: 50%; cursor: grab; touch-action: none; }
+  .pad:active { cursor: grabbing; }
+  .bot { position: absolute; z-index: 6; pointer-events: none; transform: translate(-50%, -50%);
+    width: calc(var(--s) * 1px); height: calc(var(--s) * 1px);
+    transition: left 520ms cubic-bezier(.3, 1.35, .5, 1), top 520ms cubic-bezier(.3, 1.35, .5, 1); }
+  .bot.squash { animation: squash 380ms cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes squash { 0% { transform: translate(-50%, -50%) scale(1.08, .86) } 100% { transform: translate(-50%, -50%) scale(1) } }
+
+  .face { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; height: 46px; border-radius: 23px;
+    cursor: pointer; overflow: visible; position: relative; color: var(--ink);
+    transition: opacity 140ms, width 280ms cubic-bezier(.25, 1.45, .45, 1); }
+  @keyframes rd { from { opacity: 0; transform: translateX(-4px) } to { opacity: 1; transform: none } }
+  .face .read { animation: rd 220ms 70ms both; }
+  .face.hidden { opacity: 0; pointer-events: none; }
+  .face.rtl { flex-direction: row-reverse; }
+  .face .glyph { flex: 0 0 46px; height: 46px; display: grid; place-items: center; position: relative; color: var(--u, var(--ink)); }
+  .face .glyph img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+  .face .dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--u);
+    box-shadow: 0 0 0 2px var(--surface); }
+  .face .read { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; padding-right: 4px; }
+  .face.rtl .read { text-align: right; padding: 0 0 0 16px; }
+  .face .read b { font-size: 13px; font-weight: 650; white-space: nowrap; display: flex; gap: 6px; align-items: baseline; }
+  .face.rtl .read b { justify-content: flex-end; }
+  .face .read .v { font-variant-numeric: tabular-nums; color: var(--u); font-size: 15px; font-weight: 750; }
+  .face .read small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+  .face .count { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px;
+    background: var(--ink); color: var(--surface); font-size: 10.5px; font-weight: 700; display: grid; place-items: center;
+    font-variant-numeric: tabular-nums; }
+  .face:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .badge { height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; gap: 5px;
+    color: var(--u); font-weight: 750; font-size: 13.5px; font-variant-numeric: tabular-nums; transition: opacity 160ms; pointer-events: none; }
+  .badge.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="billy.js"></script>
+</body>
+</html>

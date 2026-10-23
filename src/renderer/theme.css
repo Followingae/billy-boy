@@ -1,0 +1,20 @@
+/* Billy Boy: warm paper surfaces, near-black ink, one tangerine accent. Colour on a face only
+   ever says how urgent it is. */
+:root {
+  --surface: #fffdf9;
+  --paper: #f6f5f2;
+  --ink: #1d1b18;
+  --ink-2: #5d5850;
+  --ink-3: #9a948a;
+  --line: rgba(29, 27, 24, .09);
+  --accent: #ff8a3d;
+  --accent-ink: #b24a08;
+  --warn: #d48a00;
+  --alert: #e5483a;
+  --alert-soft: rgba(229, 72, 58, .55);
+  --good: #2f9e62;
+  --font: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }

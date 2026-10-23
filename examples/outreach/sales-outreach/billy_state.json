@@ -1,0 +1,19 @@
+{
+  "value": "2",
+  "caption": "to set up",
+  "urgency": "warn",
+  "count": 2,
+  "goal": { "label": "Meetings this month", "done": 0, "target": 12 },
+  "funnel": [
+    { "label": "Found", "count": 0 },
+    { "label": "Contacted", "count": 0 },
+    { "label": "Replied", "count": 0 },
+    { "label": "Meetings", "count": 0 },
+    { "label": "Won", "count": 0 }
+  ],
+  "items": [
+    { "title": "Fill offer.md", "subtitle": "Who you sell to, proof, prices. Then set CONFIRMED: yes.", "path": "offer.md", "hint": "click to open", "urgency": "warn" },
+    { "title": "Read START_HERE.md", "subtitle": "Connect your mail, do one run by hand, then schedule it.", "path": "START_HERE.md", "hint": "click to open", "urgency": "warn" }
+  ],
+  "updated_at": null
+}

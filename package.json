@@ -1,0 +1,45 @@
+{
+  "name": "billy-boy",
+  "version": "0.1.0",
+  "description": "Billy Boy: a little desktop companion that snaps to your screen edges and tells you what needs you.",
+  "license": "MIT",
+  "private": false,
+  "main": "app/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/build.mjs && electron .",
+    "dist": "node scripts/build.mjs && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "dev.billyboy.app",
+    "productName": "Billy Boy",
+    "files": [
+      "app/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "app/native/**"
+    ],
+    "win": {
+      "target": "portable"
+    }
+  },
+  "dependencies": {
+    "bot-avatars": "^0.2.2",
+    "imapflow": "^1.0.171",
+    "liquid-gooey": "^0.2.2",
+    "lucide-react": "^0.454.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2"
+  },
+  "allowScripts": {
+    "electron@33.2.1": true,
+    "esbuild@0.24.2": true
+  }
+}

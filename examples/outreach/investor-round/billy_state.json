@@ -1,0 +1,19 @@
+{
+  "value": "2",
+  "caption": "to set up",
+  "urgency": "warn",
+  "count": 2,
+  "goal": { "label": "Round", "done": 0, "target": 1000000, "unit": "USD" },
+  "funnel": [
+    { "label": "Found", "count": 0 },
+    { "label": "Contacted", "count": 0 },
+    { "label": "Talking", "count": 0 },
+    { "label": "Meetings", "count": 0 },
+    { "label": "Committed", "count": 0 }
+  ],
+  "items": [
+    { "title": "Fill facts.md", "subtitle": "Your numbers, once. Then set CONFIRMED: yes.", "path": "facts.md", "hint": "click to open", "urgency": "warn" },
+    { "title": "Read START_HERE.md", "subtitle": "Connect your mail, do one run by hand, then schedule it.", "path": "START_HERE.md", "hint": "click to open", "urgency": "warn" }
+  ],
+  "updated_at": null
+}
