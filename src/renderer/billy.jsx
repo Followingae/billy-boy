@@ -30,27 +30,39 @@ function anchorFor(dock, tucked) {
 /** Which way the faces fan out: away from the edge, never off the window. */
 function arcFor(dock) {
   if (!dock || dock.mode === 'float') return { center: -90, span: 360 }
-  if (dock.mode === 'edge') return { center: { left: 0, right: 180, top: 90, bottom: -90 }[dock.side], span: 150 }
+  if (dock.mode === 'edge') return { center: { left: 0, right: 180, top: 90, bottom: -90 }[dock.side], span: 170 }
   const s = dock.side
-  return { center: (Math.atan2(s[0] === 't' ? 1 : -1, s[1] === 'l' ? 1 : -1) * 180) / Math.PI, span: 80 }
+  return { center: (Math.atan2(s[0] === 't' ? 1 : -1, s[1] === 'l' ? 1 : -1) * 180) / Math.PI, span: 90 }
 }
+
+/*
+ * Goo bridges any two shapes whose gap is smaller than roughly its blur. So at rest every
+ * droplet keeps a clear gap of 3 blurs from every other droplet and from Billy's pad: they
+ * only merge while they are travelling (the split you see as they pop out), never once
+ * they have landed.
+ */
+const BLUR = 9
+const CLEAR = 46 + BLUR * 3          // centre-to-centre distance between two face droplets
+const FIRST_RING = 116 / 2 + 46 / 2 + BLUR * 3
 
 function fanLayout(n, dock, anchor) {
   const { center, span } = arcFor(dock)
   const full = span >= 360
+  const inside = (p) => p.x >= 46 / 2 + 4 && p.x <= W - 46 / 2 - 4 && p.y >= 46 / 2 + 4 && p.y <= W - 46 / 2 - 4
   const out = []
-  let ring = 0, placed = 0
-  while (placed < n && ring < 4) {
-    const r = 104 + ring * 56
-    const room = full ? Math.floor((2 * Math.PI * r) / 60) : Math.floor(((span * Math.PI) / 180) * r / 60) + 1
-    const k = Math.min(room, n - placed)
+  for (let ring = 0, r = FIRST_RING; out.length < n && ring < 5; ring++, r += CLEAR) {
+    const minStep = 2 * Math.asin(Math.min(1, CLEAR / (2 * r))) * 180 / Math.PI   // degrees between neighbours
+    const room = full ? Math.floor(360 / minStep) : Math.floor(span / minStep) + 1
+    const k = Math.min(room, n - out.length)
+    // Keep a ring's droplets together round the outward direction instead of flung to the ends.
+    const step = full ? 360 / k : k === 1 ? 0 : Math.min(span / (k - 1), minStep * 1.3)
+    const start = full ? center + (ring % 2 ? step / 2 : 0) : center - (step * (k - 1)) / 2
     for (let i = 0; i < k; i++) {
-      const t = full ? (i / k) : (k === 1 ? 0.5 : i / (k - 1))
-      const deg = full ? center + 360 * t + ring * 18 : center - span / 2 + span * t
+      const deg = start + step * i
       const a = (deg * Math.PI) / 180
-      out.push({ x: anchor.x + Math.cos(a) * r, y: anchor.y + Math.sin(a) * r, deg, r })
+      const p = { x: anchor.x + Math.cos(a) * r, y: anchor.y + Math.sin(a) * r, deg, r }
+      if (inside(p)) out.push(p)
     }
-    placed += k; ring++
   }
   return out
 }
@@ -182,7 +194,7 @@ function Billy() {
   useEffect(() => window.billy.onCardOpen(setCardUid), [])
   useEffect(() => window.billy.onNear(setNear), [])
   useEffect(() => window.billy.onNudge(() => { setHop(true); setTimeout(() => setHop(false), 2200) }), [])
-  useEffect(() => window.billy.onDemoOpen((what) => { setOpen(true); if (what !== '1') setHover(what) }), [])
+  useEffect(() => window.billy.onDemoOpen((what) => { soundOn.current = false; setOpen(true); if (what !== '1') setHover(what) }), [])
   const soundOn = useRef(true)
   useEffect(() => { soundOn.current = st.sound !== false }, [st.sound])
   const wasTucked = useRef(false)
@@ -294,13 +306,12 @@ function Billy() {
   const bx = anchor.x + Math.cos(ba) * (S.pad / 2 + 2) - badgeW / 2
   const by = anchor.y + Math.sin(ba) * (S.pad / 2 + 2) - 15
 
-  const ring = worst === 'alert' ? ', inset 0 0 0 2.5px var(--alert-soft)' : ''
 
   return (
     <Liquid
       className={`stage ${open ? 'open' : ''}`}
-      blur={9} contrast={22} fill="var(--surface)"
-      shadow={`0 16px 34px rgba(48, 32, 18, .20), 0 3px 8px rgba(48, 32, 18, .14)${ring}`}
+      blur={BLUR} contrast={22} fill="var(--surface)"
+      shadow="0 16px 34px rgba(48, 32, 18, .20), 0 3px 8px rgba(48, 32, 18, .14)"
       filterPadding={40}
       style={{ width: W, height: W }}
     >
@@ -314,41 +325,28 @@ function Billy() {
       )}
 
       {faces.map((f, i) => {
-        const p = fan[i] || { x: anchor.x, y: anchor.y }
-        const isHover = open && hover === f.uid
-        const label = f.error && !f.result ? 'Needs setup' : f.result?.caption || f.name
+        const p = open ? fan[i] : null          // more faces than fit stay tucked in Billy (right-click lists all)
         const value = f.result?.value || ''
-        const pillW = isHover ? Math.min(240, Math.max(150, 76 + Math.max(label.length, f.name.length) * 6.6 + value.length * 8)) : S.icon
-        const dir = p.x >= anchor.x - 1 ? 1 : -1
-        let x = open ? (dir > 0 ? p.x - S.icon / 2 : p.x + S.icon / 2 - pillW) : anchor.x - S.icon / 2
-        x = Math.min(Math.max(x, 6), W - 6 - pillW)
-        const y = open ? p.y - S.icon / 2 : anchor.y - S.icon / 2
         const u = urgentOf(f)
+        const lit = !!p
         return (
-          <Liquid.Item key={f.uid} x={x} y={y} scale={open ? 1 : 0.3}
-            transition={open ? { stiffness: 380, damping: 19, mass: 1 } : 'snappy'} delay={open ? 30 + i * 32 : 0}
-            style={{ position: 'absolute', left: 0, top: 0, zIndex: isHover ? 5 : 2 }}>
+          <Liquid.Item key={f.uid} x={(p || anchor).x - S.icon / 2} y={(p || anchor).y - S.icon / 2} scale={lit ? 1 : 0.3}
+            transition={lit ? { stiffness: 380, damping: 19, mass: 1 } : 'snappy'} delay={lit ? 30 + i * 32 : 0}
+            style={{ position: 'absolute', left: 0, top: 0, zIndex: 2 }}>
             <button
-              data-hit={open ? '' : undefined}
-              className={`face ${isHover ? 'wide' : ''} ${dir < 0 ? 'rtl' : ''} ${open ? '' : 'hidden'}`}
-              style={{ width: pillW, height: S.icon, '--u': URGENT[u] }}
+              data-hit={lit ? '' : undefined}
+              className={`face ${lit ? '' : 'hidden'} ${hover && hover !== f.uid ? 'dim' : ''}`}
+              style={{ width: S.icon, height: S.icon, '--u': URGENT[u] }}
               onMouseEnter={() => setHover(f.uid)}
-              onMouseLeave={() => setHover((h) => (h === f.uid ? null : h))}
               onClick={() => clickFace(f)}
               onContextMenu={(e) => { e.preventDefault(); window.billy.menu(f.uid) }}
-              aria-label={`${f.name}: ${value} ${label}`}
+              aria-label={`${f.name}: ${value} ${f.result?.caption || ''}`}
             >
               <span className="glyph">
                 {f.result?.art ? <img src={f.result.art} alt="" /> : <Icon name={f.icon} size={19} />}
                 {u !== 'calm' && <i className="dot" />}
               </span>
-              {isHover && (
-                <span className="read">
-                  <b>{value ? <span className="v">{value}</span> : null}{f.name}</b>
-                  <small>{label}</small>
-                </span>
-              )}
-              {!isHover && value && value.length <= 3 && f.type !== 'volume' && <span className="count">{value}</span>}
+              {value && value.length <= 3 && f.type !== 'volume' && <span className="count">{value}</span>}
             </button>
           </Liquid.Item>
         )
@@ -379,6 +377,7 @@ function Billy() {
           will-change layer is rasterised once at one scale and then stretched, which is what
           made him look low-res. Here his canvas paints 1:1 at the screen's pixel density. */}
       <div className={`bot ${squash < 1 ? 'squash' : ''}`} style={{ left: anchor.x, top: anchor.y, '--s': S.bot }}>
+          {worst === 'alert' && !open && <i className="urgent" aria-label="Something urgent" />}
           <BotAvatar
             type={st.look.type || 'droid'}
             color={st.look.color || undefined}
@@ -395,6 +394,45 @@ function Billy() {
             aria-label="Billy"
           />
       </div>
+
+      {open && hover && (() => {
+        const i = faces.findIndex((f) => f.uid === hover)
+        const f = faces[i], p = fan[i]
+        if (!f || !p) return null
+        return <Readout key={f.uid} f={f} p={p} anchor={anchor} u={urgentOf(f)} onLeave={() => setHover(null)}
+          onClick={() => clickFace(f)} onMenu={() => window.billy.menu(f.uid)} />
+      })()}
+    </Liquid>
+  )
+}
+
+/** A hovered face stretches into a pill that reads out. It is its own liquid group, so it
+ *  floats over its neighbours instead of melting into them. */
+function Readout({ f, p, anchor, u, onLeave, onClick, onMenu }) {
+  const label = f.error && !f.result ? 'Needs setup' : f.result?.caption || f.name
+  const value = f.result?.value || ''
+  const full = Math.min(250, Math.max(150, 78 + Math.max(label.length, f.name.length) * 6.6 + value.length * 8))
+  const [w, setW] = useState(46)
+  useEffect(() => { const id = requestAnimationFrame(() => setW(full)); return () => cancelAnimationFrame(id) }, [full])
+  const dir = p.x >= anchor.x - 1 ? 1 : -1
+  let x = dir > 0 ? p.x - 23 : p.x + 23 - w
+  x = Math.min(Math.max(x, 6), W - 6 - w)
+  return (
+    <Liquid className="readout" blur={BLUR} contrast={22} fill="var(--surface)"
+      shadow="0 14px 30px rgba(48, 32, 18, .24), 0 2px 6px rgba(48, 32, 18, .14)" filterPadding={30}
+      style={{ position: 'absolute', inset: 0, width: W, height: W }}>
+      <Liquid.Item x={x} y={p.y - 23} transition="snappy" style={{ position: 'absolute', left: 0, top: 0 }}>
+        <button data-hit className={`face wide ${dir < 0 ? 'rtl' : ''}`} style={{ width: w, height: 46, '--u': URGENT[u] }}
+          onMouseLeave={onLeave} onClick={onClick} onContextMenu={(e) => { e.preventDefault(); onMenu() }}>
+          <span className="glyph">{f.result?.art ? <img src={f.result.art} alt="" /> : <Icon name={f.icon} size={19} />}</span>
+          {w === full && (
+            <span className="read">
+              <b>{value ? <span className="v">{value}</span> : null}{f.name}</b>
+              <small>{label}</small>
+            </span>
+          )}
+        </button>
+      </Liquid.Item>
     </Liquid>
   )
 }

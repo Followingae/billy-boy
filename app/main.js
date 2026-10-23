@@ -18,7 +18,9 @@ const path = require('path')
 const fs = require('fs')
 const { spawn } = require('child_process')
 
-app.setPath('userData', path.join(app.getPath('appData'), 'billy-boy'))
+// Test runs (BILLY_DEMO) get their own folder and skip the single-instance lock, so they
+// never touch, move or hand off to the user's running Billy.
+app.setPath('userData', path.join(app.getPath('appData'), process.env.BILLY_DEMO ? 'billy-boy-demo' : 'billy-boy'))
 const store = require('./store')
 const faces = require('./connectors')
 
@@ -470,7 +472,7 @@ function summon() {
   billy.showInactive()
 }
 
-if (!app.requestSingleInstanceLock()) app.quit()
+if (!process.env.BILLY_DEMO && !app.requestSingleInstanceLock()) app.quit()
 else app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('dev.billyboy.app')
   store.init(app, safeStorage)

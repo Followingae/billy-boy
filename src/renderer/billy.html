@@ -16,6 +16,11 @@
   .bot { position: absolute; z-index: 6; pointer-events: none; transform: translate(-50%, -50%);
     width: calc(var(--s) * 1px); height: calc(var(--s) * 1px);
     transition: left 520ms cubic-bezier(.3, 1.35, .5, 1), top 520ms cubic-bezier(.3, 1.35, .5, 1); }
+  .urgent { position: absolute; z-index: 2; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--alert); box-shadow: 0 0 0 2.5px var(--surface); }
+  .urgent::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--alert);
+    animation: ping 1.8s cubic-bezier(0, 0, .2, 1) infinite; }
+  @keyframes ping { 75%, 100% { transform: scale(2.4); opacity: 0 } }
   .bot.squash { animation: squash 380ms cubic-bezier(.3, 1.6, .5, 1); }
   @keyframes squash { 0% { transform: translate(-50%, -50%) scale(1.08, .86) } 100% { transform: translate(-50%, -50%) scale(1) } }
 
@@ -25,6 +30,9 @@
   @keyframes rd { from { opacity: 0; transform: translateX(-4px) } to { opacity: 1; transform: none } }
   .face .read { animation: rd 220ms 70ms both; }
   .face.hidden { opacity: 0; pointer-events: none; }
+  .face.dim .glyph { opacity: .35; transition: opacity 160ms; }
+  .readout { z-index: 7; pointer-events: none; }
+  .readout .face { pointer-events: auto; }
   .face.rtl { flex-direction: row-reverse; }
   .face .glyph { flex: 0 0 46px; height: 46px; display: grid; place-items: center; position: relative; color: var(--u, var(--ink)); }
   .face .glyph img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
