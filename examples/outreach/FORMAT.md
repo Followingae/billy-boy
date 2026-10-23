@@ -31,6 +31,11 @@ The one file an outreach agent writes and Billy reads. Every field is optional e
 }
 ```
 
+- `send` on a draft item: `first`, `followup` or `reply`. Billy holds it back (calm, "ready, send
+  Mon 09:00") outside the face's send window: working days and hours for first emails and
+  follow-ups, a later cut-off for replies. Items without `send` (meetings, tasks) always show.
+- `id` and `who` on an item let the user reject it with one click; rejections land in
+  `dismissed.json` beside the state file, which the agent must respect.
 - `urgency`: `calm`, `warn` or `alert`. Alert makes Billy's badge red and his pad gets a red rim.
 - An item opens `url` (https only) or `path` (a local file) when clicked.
 - Billy warns you on his own if `updated_at` is older than the face's "warn if not updated" setting, so a broken schedule never goes unnoticed.

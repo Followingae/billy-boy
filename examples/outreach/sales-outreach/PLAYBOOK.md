@@ -51,7 +51,7 @@ booked this month of the target in `offer.md`. `funnel` = Found, Contacted, Repl
 
 ### QUICK CHECK (every 10 minutes; fast and cheap)
 The prompt gives you `SINCE` (the last check). Do only this, then stop:
-1. Mail received after SINCE from anyone in `accounts.json`, or replies on threads you drafted.
+1. Mail received after SINCE (and at least 30 minutes ago) from anyone in `accounts.json`, or replies on threads you drafted.
 2. Mail the user SENT after SINCE to those prospects.
 3. Meetings with them in the next 48 hours that have no `prep/` note yet, and meetings that ended after SINCE.
 4. Follow-ups in `accounts.json` due today or earlier with no draft yet.
@@ -63,3 +63,9 @@ Do "Each run", skipping new sourcing unless the deep run is overdue.
 
 ### DEEP RUN (once a night, or the first run after a night off)
 Everything in "Each run", plus fresh sourcing and research, tidying the list, and lining up tomorrow's first touches.
+
+## Timing
+- Never draft a reply until the email has been in the inbox for 30 minutes; leave it for the next check.
+- Every draft you put on Billy carries a `send` field: "first", "followup" or "reply". Billy only asks
+  the user to send first emails and follow-ups in working hours (default Mon to Fri, 9:00 to 18:00)
+  and replies until 22:00, so drafts can be written at any hour. The face's settings change the hours.
