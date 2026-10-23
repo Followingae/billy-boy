@@ -39,6 +39,8 @@ playbook from `examples/outreach/`: it finds investors or buyers, researches the
 to read and send. The playbooks forbid sending, and they forbid inventing numbers.
 See `examples/outreach/FORMAT.md` for the file format.
 
+What you need: [Claude Code](https://claude.com/claude-code) (a Claude subscription) with your mail connected. An investor or sales database (Metal, Crunchbase, Affinity, Apollo, Lusha) makes it sharper but is optional: without one the agent researches on the web and keeps its own list. To keep it running on its own, see `examples/outreach/runner`.
+
 ## Get Billy
 
 **Just want to use him?** Download `BillyBoy-portable.exe` from the

@@ -11,7 +11,9 @@
 # Claude runs headless at the lowest priority, with Gmail (read + drafts only) and, if connected, Metal. Every send,
 # forward, reply-send, delete and label tool is blocked, so nothing can ever be sent from here.
 
-param([Parameter(Mandatory = $true)][string]$Folder, [string]$FastModel = 'haiku', [string]$SmartModel = 'sonnet')
+# -AllowTools: extra connectors the agent may use, e.g. 'mcp__claude_ai_Crunchbase','mcp__claude_ai_Lusha'
+# (whole servers, read and write). Metal is allowed by default. Send tools stay blocked whatever you add.
+param([Parameter(Mandatory = $true)][string]$Folder, [string]$FastModel = 'haiku', [string]$SmartModel = 'sonnet', [string[]]$AllowTools = @())
 $ErrorActionPreference = 'Stop'
 $Root    = (Resolve-Path $Folder).Path
 $Dir     = Join-Path $Root 'runner'
@@ -71,7 +73,7 @@ $Allowed = @(
   'mcp__claude_ai_Gmail__search_threads', 'mcp__claude_ai_Gmail__get_thread', 'mcp__claude_ai_Gmail__get_message',
   'mcp__claude_ai_Gmail__list_drafts', 'mcp__claude_ai_Gmail__get_draft', 'mcp__claude_ai_Gmail__create_draft',
   'mcp__claude_ai_Metal'
-)
+) + $AllowTools
 $Blocked = @(
   'Bash', 'PowerShell',
   'mcp__claude_ai_Metal__send-email-draft',

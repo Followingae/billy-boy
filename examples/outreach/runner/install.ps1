@@ -7,7 +7,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Folder "C:\path\to\your outreach folder"
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Folder "..." -Remove      (to stop it)
-param([Parameter(Mandatory = $true)][string]$Folder, [switch]$Remove)
+param([Parameter(Mandatory = $true)][string]$Folder, [switch]$Remove, [string[]]$AllowTools = @())
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path $Folder).Path
 $name = 'Billy outreach runner - ' + (Split-Path $Root -Leaf)
@@ -19,7 +19,7 @@ $dir = Join-Path $Root 'runner'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 Copy-Item -Force (Join-Path $PSScriptRoot 'runner.ps1') (Join-Path $dir 'runner.ps1')
 $vbs = Join-Path $dir 'start-hidden.vbs'
-$cmd = 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""' + (Join-Path $dir 'runner.ps1') + '"" -Folder ""' + $Root + '""'
+$cmd = 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""' + (Join-Path $dir 'runner.ps1') + '"" -Folder ""' + $Root + '""' + $(if ($AllowTools.Count) { ' -AllowTools ' + ($AllowTools -join ',') } else { '' })
 Set-Content -Path $vbs -Encoding ASCII -Value @(
   "' Starts the outreach runner with no window at all, so it never interrupts a game.",
   'Set sh = CreateObject("WScript.Shell")',

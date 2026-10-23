@@ -24,6 +24,10 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Folder "C:\path\to\your ou
 Billy's room shows this exact command for your folder (the face's "How it runs" screen) with a copy
 button. Billy's card then shows when the runner last checked, and warns you if it stops.
 
+Using a database other than Metal (Crunchbase, Affinity, Lusha, Apollo...)? Connect it in Claude Code
+with `/mcp`, then add `-AllowTools mcp__claude_ai_Crunchbase` (its server name) to the install command.
+Without any database the agent researches on the web and keeps its own list.
+
 To stop it: add `-Remove` to the same command.
 
 ## Cost
