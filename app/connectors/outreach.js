@@ -75,9 +75,12 @@ module.exports = {
       .map((it) => (it.path && base && !path.isAbsolute(it.path) ? { ...it, path: path.join(base, it.path) } : it))
       .map((it) => ({ ...it, key: keyOf(it), dismissable: !!base && !it.setup }))
       .filter((it) => !gone.has(it.key))
-    const staleH = Number(ctx.config.stale) || 30
-    const stale = s.updated_at && (Date.now() - new Date(s.updated_at)) / 3_600_000 > staleH
-    if (stale) items.unshift({ title: 'The agent has not run lately', subtitle: `Last ${ago(s.updated_at)}. Check its schedule.`, urgency: 'warn' })
+    // The always-on runner stamps `checked_at` on every check (even when nothing is new), so a
+    // runner that stopped shows within an hour; without one, the agent's own `updated_at` counts.
+    const beat = [s.checked_at, s.updated_at].filter(Boolean).sort().pop()
+    const staleH = s.checked_at ? 1 : Number(ctx.config.stale) || 30
+    const stale = beat && (Date.now() - new Date(beat)) / 3_600_000 > staleH
+    if (stale) items.unshift({ title: 'The agent has not run lately', subtitle: `Last ${ago(beat)}. Is the PC on and the runner installed?`, urgency: 'warn' })
     const count = s.count ?? items.length
     return {
       value: s.value != null ? String(s.value) : String(count),
@@ -88,7 +91,7 @@ module.exports = {
       funnel: s.funnel || null,
       inbox: s.inbox || null,
       meetings: s.meetings || null,
-      updated: s.updated_at ? ago(s.updated_at) : null,
+      updated: s.runner && s.checked_at ? `${s.runner}, ${ago(s.checked_at).replace('updated ', '')}` : beat ? ago(beat) : null,
     }
   },
 }

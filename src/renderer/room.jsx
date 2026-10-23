@@ -142,7 +142,7 @@ function OutreachPanel({ face, onSetup }) {
       </div>
       <div className="row-btns">
         <button className="primary" onClick={() => onSetup(face.uid, 'you')}>{info.managed ? 'Edit answers' : 'Set this up'}</button>
-        {info.managed && <button className="ghost" onClick={() => onSetup(face.uid, 'agent')}><Icon name="sparkles" size={15} />Run your agent</button>}
+        {info.managed && <button className="ghost" onClick={() => onSetup(face.uid, 'agent')}><Icon name="sparkles" size={15} />How it runs</button>}
         {info.managed && <button className="ghost" onClick={() => window.billy.openFolder(info.folder)}><Icon name="folder" size={15} />Open folder</button>}
       </div>
     </div>
@@ -170,7 +170,7 @@ function Wizard({ uid, start, onClose }) {
   const [confirmed, setConfirmed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState(null)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(false)   // false | true (command) | 'on' (always-on command)
   useEffect(() => {
     window.billy.outreachGet(uid).then((d) => {
       if (!d) return
@@ -249,7 +249,10 @@ function Wizard({ uid, start, onClose }) {
                 <div className="copy"><code>{info.command}</code>
                   <button className="ghost" onClick={() => { window.billy.copyText(info.command); setCopied(true); setTimeout(() => setCopied(false), 1500) }}><Icon name={copied ? 'ok' : 'copy'} size={14} />{copied ? 'Copied' : 'Copy'}</button></div>
               </li>
-              <li><b>Schedule it</b> when you trust it: in Claude Code type <code>/schedule</code> and ask for weekday mornings. Never give it permission to send.</li>
+              <li><b>Keep it always on</b> when you trust it: it checks every 10 minutes, works only when something happened, catches up after the PC was off, pauses while you game, and can never send. Paste this into PowerShell once:
+                <div className="copy"><code>{info.alwaysOn}</code>
+                  <button className="ghost" onClick={() => { window.billy.copyText(info.alwaysOn); setCopied('on'); setTimeout(() => setCopied(false), 1500) }}><Icon name={copied === 'on' ? 'ok' : 'copy'} size={14} />{copied === 'on' ? 'Copied' : 'Copy'}</button></div>
+              </li>
             </ol>
             <div className="ed-actions">
               <button className="ghost" onClick={() => window.billy.openFolder(folder)}><Icon name="folder" size={15} />Open the folder</button>

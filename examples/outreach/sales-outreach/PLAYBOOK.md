@@ -46,3 +46,20 @@ run leaves the seller a short, exact list of what only they can do.
 Replies waiting (alert), meeting requests (alert), drafts to send (warn), today's meetings with
 the prep file as `path` (warn), anything only the seller can decide (warn). `goal` = meetings
 booked this month of the target in `offer.md`. `funnel` = Found, Contacted, Replied, Meetings, Won.
+
+## Run modes (the always-on runner picks one each time; see examples/outreach/runner)
+
+### QUICK CHECK (every 10 minutes; fast and cheap)
+The prompt gives you `SINCE` (the last check). Do only this, then stop:
+1. Mail received after SINCE from anyone in `accounts.json`, or replies on threads you drafted.
+2. Mail the user SENT after SINCE to those prospects.
+3. Meetings with them in the next 48 hours that have no `prep/` note yet, and meetings that ended after SINCE.
+4. Follow-ups in `accounts.json` due today or earlier with no draft yet.
+Print one final line: `NEEDS_RUN: <short reasons>` if anything turned up, otherwise `NOTHING`.
+Do not draft or write files in a quick check.
+
+### FULL RUN (when a quick check says NEEDS_RUN, or catching up after the PC was off)
+Do "Each run", skipping new sourcing unless the deep run is overdue.
+
+### DEEP RUN (once a night, or the first run after a night off)
+Everything in "Each run", plus fresh sourcing and research, tidying the list, and lining up tomorrow's first touches.

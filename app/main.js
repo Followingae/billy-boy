@@ -485,6 +485,8 @@ ipcMain.handle('outreach-setup-get', (_e, uid) => {
     kind, answers, steps: outreach.STEPS[kind], confirmed: !!face.config?.confirmed, managed: !!face.config?.managed,
     folder: source ? path.dirname(source) : outreach.defaultFolder(app, kind, answers.company),
     command: 'claude -p "Follow PLAYBOOK.md in this folder for one run."',
+    // The always-on runner ships unpacked beside the app (PowerShell cannot read inside app.asar).
+    alwaysOn: `powershell -ExecutionPolicy Bypass -File "${path.join(__dirname, '..', 'examples', 'outreach', 'runner', 'install.ps1').replace('app.asar', 'app.asar.unpacked')}" -Folder "${source ? path.dirname(source) : outreach.defaultFolder(app, kind, answers.company)}"`,
   }
 })
 ipcMain.handle('outreach-setup-save', (_e, uid, { answers, folder, confirmed }) => {
