@@ -15,58 +15,12 @@ import { toneOf } from './tone'
  */
 
 const W = 420
+const CENTER = { x: W / 2, y: W / 2 }
 const big = { pad: 116, bot: 94, icon: 46 }
 const small = { pad: 74, bot: 56, icon: 46 }
 const URGENT = { calm: 'var(--ink)', warn: 'var(--warn)', alert: 'var(--alert)' }
 
-function anchorFor(dock, tucked) {
-  const m = tucked ? 16 : 64
-  const c = W / 2, far = W - m
-  if (!dock || dock.mode === 'float') return { x: c, y: c }
-  const s = dock.side
-  if (dock.mode === 'edge') return { left: { x: m, y: c }, right: { x: far, y: c }, top: { x: c, y: m }, bottom: { x: c, y: far } }[s] || { x: c, y: c }
-  return { x: s[1] === 'l' ? m : far, y: s[0] === 't' ? m : far }
-}
-
-/** Which way the faces fan out: away from the edge, never off the window. */
-function arcFor(dock) {
-  if (!dock || dock.mode === 'float') return { center: -90, span: 360 }
-  if (dock.mode === 'edge') return { center: { left: 0, right: 180, top: 90, bottom: -90 }[dock.side], span: 170 }
-  const s = dock.side
-  return { center: (Math.atan2(s[0] === 't' ? 1 : -1, s[1] === 'l' ? 1 : -1) * 180) / Math.PI, span: 90 }
-}
-
-/*
- * Goo bridges any two shapes whose gap is smaller than roughly its blur. So at rest every
- * droplet keeps a clear gap of 3 blurs from every other droplet and from Billy's pad: they
- * only merge while they are travelling (the split you see as they pop out), never once
- * they have landed.
- */
-const BLUR = 9
-const CLEAR = 46 + BLUR * 3          // centre-to-centre distance between two face droplets
-const FIRST_RING = 116 / 2 + 46 / 2 + BLUR * 3
-
-function fanLayout(n, dock, anchor) {
-  const { center, span } = arcFor(dock)
-  const full = span >= 360
-  const inside = (p) => p.x >= 46 / 2 + 4 && p.x <= W - 46 / 2 - 4 && p.y >= 46 / 2 + 4 && p.y <= W - 46 / 2 - 4
-  const out = []
-  for (let ring = 0, r = FIRST_RING; out.length < n && ring < 5; ring++, r += CLEAR) {
-    const minStep = 2 * Math.asin(Math.min(1, CLEAR / (2 * r))) * 180 / Math.PI   // degrees between neighbours
-    const room = full ? Math.floor(360 / minStep) : Math.floor(span / minStep) + 1
-    const k = Math.min(room, n - out.length)
-    // Keep a ring's droplets together round the outward direction instead of flung to the ends.
-    const step = full ? 360 / k : k === 1 ? 0 : Math.min(span / (k - 1), minStep * 1.3)
-    const start = full ? center + (ring % 2 ? step / 2 : 0) : center - (step * (k - 1)) / 2
-    for (let i = 0; i < k; i++) {
-      const deg = start + step * i
-      const a = (deg * Math.PI) / 180
-      const p = { x: anchor.x + Math.cos(a) * r, y: anchor.y + Math.sin(a) * r, deg, r }
-      if (inside(p)) out.push(p)
-    }
-  }
-  return out
-}
+import { fanLayout, meltFor, reachFor, badgeAngle, BLUR } from './fan.mjs'
 
 /** How wide a face grows when hovered, and where its pill sits. */
 function pillFor(f, p, anchor) {
@@ -119,21 +73,6 @@ function makeRoom(points, hoverIdx, pill, anchor, padR) {
     })
   }
   return pts
-}
-
-/** The strip that melts Billy into the edge or corner he is stuck to. */
-function meltFor(dock, anchor, strength) {
-  if (!dock || dock.mode === 'float' || strength <= 0) return null
-  const s = dock.side
-  if (dock.mode === 'edge') {
-    const v = s === 'left' || s === 'right'
-    const len = 132, th = 18
-    return v
-      ? { x: s === 'left' ? -th / 2 : W - th / 2, y: anchor.y - len / 2, w: th, h: len, r: th / 2 }
-      : { x: anchor.x - len / 2, y: s === 'top' ? -th / 2 : W - th / 2, w: len, h: th, r: th / 2 }
-  }
-  const size = 70
-  return { x: s[1] === 'l' ? -size / 2 : W - size / 2, y: s[0] === 't' ? -size / 2 : W - size / 2, w: size, h: size, r: size / 2 }
 }
 
 // ── sound ──────────────────────────────────────────────────────────────────────────────
@@ -231,8 +170,9 @@ function useVolume() {
 
 function Billy() {
   const [st, setSt] = useState({ faces: [], look: {}, pinned: null, quiet: null, sound: true })
-  const [dock, setDock] = useState({ mode: 'float', tucked: false })
-  const [near, setNear] = useState(null)
+  const [dock, setDock] = useState({ mode: 'float', tucked: false, anchor: CENTER })
+  const [instant, setInstant] = useState(true)
+  const [near, setNear] = useState([])
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(null)
   const intent = useRef({ enter: null, leave: null })
@@ -255,15 +195,33 @@ function Billy() {
   const dragRef = useRef(null)
 
   useEffect(() => window.billy.onState(setSt), [])
+  // The taskbar and tray icon is Billy as he looks right now: snapshot his canvas once he has
+  // been drawn, and again whenever his look changes.
+  const lookKey = JSON.stringify(st.look || {})
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const c = document.querySelector('.bot canvas')
+      if (!c || !c.width) return
+      const out = document.createElement('canvas'); out.width = out.height = 256
+      const side = Math.min(c.width, c.height) * 0.72     // his canvas has room to hop; crop to him
+      out.getContext('2d').drawImage(c, (c.width - side) / 2, (c.height - side) / 2, side, side, 0, 0, 256, 256)
+      try { window.billy.setIcon(out.toDataURL('image/png')) } catch {}
+    }, 1600)
+    return () => clearTimeout(t)
+  }, [lookKey])
   useEffect(() => window.billy.onCardOpen(setCardUid), [])
-  useEffect(() => window.billy.onNear(setNear), [])
+  useEffect(() => window.billy.onNear((n) => setNear(Array.isArray(n) ? n : [])), [])
   useEffect(() => window.billy.onNudge(() => { setHop(true); setTimeout(() => setHop(false), 2200) }), [])
   useEffect(() => window.billy.onDemoOpen((what) => { soundOn.current = false; setOpen(true); if (what !== '1') setHover(what) }), [])
   const soundOn = useRef(true)
   useEffect(() => { soundOn.current = st.sound !== false }, [st.sound])
   const wasTucked = useRef(false)
   useEffect(() => window.billy.onDock((d) => {
-    setDock(d); setNear(null)
+    // A re-anchor that must not animate (lift-off, start-up) is drawn in one frame; Billy's
+    // window moves in the same instant, so on screen he does not move at all.
+    setInstant(!!d.instant || !!d.lifted)
+    setDock({ ...d, anchor: d.anchor || CENTER }); setNear([])
+    if (d.instant || d.lifted) requestAnimationFrame(() => requestAnimationFrame(() => setInstant(false)))
     if (d.landed) {
       setSquash(0.86); setTimeout(() => setSquash(1), 380)
       setHop(true); setTimeout(() => setHop(false), 1300)
@@ -285,7 +243,7 @@ function Billy() {
 
   const tucked = !!dock.tucked
   const S = tucked ? small : big
-  const anchor = anchorFor(dock.mode === 'float' && near ? { mode: 'float' } : dock, tucked)
+  const anchor = dock.anchor || CENTER
 
   // Faces, with the built-in volume reading filled in here (the renderer owns it).
   const faces = useMemo(() => st.faces.filter((f) => !f.missing && !f.hidden).map((f) => {
@@ -301,7 +259,7 @@ function Billy() {
   const focusing = faces.some((f) => f.type === 'focus' && f.result?.focusing)
   const sleeping = !hop && !open && (tucked || quietNow(st.quiet)) && worst !== 'alert'
 
-  const fan = fanLayout(faces.length, dock, anchor)
+  const fan = fanLayout(faces.length, anchor, dock)
   const hoverIdx = open && hover ? faces.findIndex((f) => f.uid === hover) : -1
   const pill = hoverIdx >= 0 && fan[hoverIdx] ? pillFor(faces[hoverIdx], fan[hoverIdx], anchor) : null
   const spots = makeRoom(fan, pill ? hoverIdx : -1, pill, anchor, S.pad / 2)
@@ -360,15 +318,15 @@ function Billy() {
     window.billy.openCard(f.uid)
   }
 
-  const melt = meltFor(near?.mode && near.mode !== 'float' ? near : dock, anchorFor(near?.mode && near.mode !== 'float' ? near : dock, tucked),
-    near ? near.strength : dock.mode === 'float' ? 0 : 1)
+  const melt = meltFor(dock, anchor)
+  const reach = reachFor(near, anchor)
+  const dragging = near.length > 0
 
   // The pinned face's reading rides on a droplet stuck to Billy's pad.
   const badgeFace = showVol ? faces.find((f) => f.type === 'volume') : pinned
   const badgeText = badgeFace ? (badgeFace.result?.value || '') : ''
-  const showBadge = !!badgeFace && !!badgeText && !open && !tucked && !near
-  const { center } = arcFor(dock)
-  const ba = ((dock.mode === 'float' ? 45 : center + (dock.mode === 'edge' ? 38 : 0)) * Math.PI) / 180
+  const showBadge = !!badgeFace && !!badgeText && !open && !tucked && !dragging
+  const ba = badgeAngle(anchor)
   const badgeW = Math.max(40, 22 + badgeText.length * 9 + 18)
   const bx = anchor.x + Math.cos(ba) * (S.pad / 2 + 2) - badgeW / 2
   const by = anchor.y + Math.sin(ba) * (S.pad / 2 + 2) - 15
@@ -385,7 +343,7 @@ function Billy() {
       {open && <div data-hit className="zone" style={{ left: anchor.x, top: anchor.y }} onContextMenu={(e) => { e.preventDefault(); window.billy.menu(null) }} />}
 
       {melt && (
-        <Liquid.Item key="melt" x={melt.x} y={melt.y} scale={near ? 0.4 + near.strength * 0.6 : 1} transition="bouncy"
+        <Liquid.Item key="melt" x={melt.x} y={melt.y} scale={1} transition={instant ? { duration: 0 } : 'bouncy'}
           style={{ position: 'absolute', left: 0, top: 0, width: melt.w, height: melt.h, borderRadius: melt.r }}>
           <div className="blob" style={{ width: melt.w, height: melt.h, borderRadius: melt.r }} />
         </Liquid.Item>
@@ -400,7 +358,7 @@ function Billy() {
         const y = isHover ? pill.y : (home || anchor).y - S.icon / 2
         return (
           <Liquid.Item key={f.uid} x={x} y={y} scale={home ? 1 : 0.3}
-            transition={!home ? 'snappy' : pill ? { stiffness: 150, damping: 20, mass: 1 } : { stiffness: 230, damping: 20, mass: 1 }}
+            transition={instant ? { duration: 0 } : !home ? 'snappy' : pill ? { stiffness: 150, damping: 20, mass: 1 } : { stiffness: 230, damping: 20, mass: 1 }}
             delay={home && !pill ? 40 + i * 38 : 0}
             style={{ position: 'absolute', left: 0, top: 0, zIndex: isHover ? 5 : 2 }}>
             <button
@@ -430,14 +388,21 @@ function Billy() {
       })}
 
       <Liquid.Item key="badge" x={showBadge ? bx : anchor.x - badgeW / 2} y={showBadge ? by : anchor.y - 15} scale={showBadge ? 1 : 0.2}
-        transition="bouncy" style={{ position: 'absolute', left: 0, top: 0, zIndex: 3 }}>
+        transition={instant ? { duration: 0 } : 'bouncy'} style={{ position: 'absolute', left: 0, top: 0, zIndex: 3 }}>
         <div className={`badge ${showBadge ? '' : 'hidden'}`} style={{ width: badgeW, '--u': badgeFace ? URGENT[urgentOf(badgeFace)] : 'var(--ink)' }}>
           {badgeFace && <Icon name={badgeFace.icon} size={13} />}
           <span>{badgeText}</span>
         </div>
       </Liquid.Item>
 
-      <Liquid.Item key="pad" x={anchor.x - S.pad / 2} y={anchor.y - S.pad / 2} scale={squash} transition="bouncy"
+      {reach.map((b) => (
+        <Liquid.Item key={`reach-${b.key}`} x={b.x} y={b.y} transition={{ stiffness: 520, damping: 26, mass: 1 }}
+          style={{ position: 'absolute', left: 0, top: 0, zIndex: 3 }}>
+          <div className="blob" style={{ width: b.w, height: b.h, borderRadius: b.r }} />
+        </Liquid.Item>
+      ))}
+
+      <Liquid.Item key="pad" x={anchor.x - S.pad / 2} y={anchor.y - S.pad / 2} scale={squash} transition={instant ? { duration: 0 } : 'bouncy'}
         style={{ position: 'absolute', left: 0, top: 0, zIndex: 4 }}>
         <div
           data-hit
@@ -453,7 +418,7 @@ function Billy() {
       {/* Billy rides on his own layer, never inside the liquid's transformed wrapper: a
           will-change layer is rasterised once at one scale and then stretched, which is what
           made him look low-res. Here his canvas paints 1:1 at the screen's pixel density. */}
-      <div className={`bot ${squash < 1 ? 'squash' : ''}`} style={{ left: anchor.x, top: anchor.y, '--s': S.bot }}>
+      <div className={`bot ${squash < 1 ? 'squash' : ''} ${instant ? 'instant' : ''}`} style={{ left: anchor.x, top: anchor.y, '--s': S.bot }}>
           {worst === 'alert' && !open && <i className="urgent" aria-label="Something urgent" />}
           <BotAvatar
             type={st.look.type || 'droid'}

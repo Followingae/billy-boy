@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('billy', {
   dragEnd: () => ipcRenderer.send('drag-end'),
   toggleTuck: () => ipcRenderer.send('toggle-tuck'),
   menu: (uid) => ipcRenderer.send('menu', uid),
+  setIcon: (dataUrl) => ipcRenderer.send('set-icon', dataUrl),
   pin: (uid) => ipcRenderer.send('pin', uid),
   openCard: (uid) => ipcRenderer.send('open-card', uid),
   closeCard: () => ipcRenderer.send('close-card'),

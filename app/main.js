@@ -22,11 +22,10 @@ const { spawn } = require('child_process')
 // never touch, move or hand off to the user's running Billy.
 app.setPath('userData', path.join(app.getPath('appData'), process.env.BILLY_DEMO ? 'billy-boy-demo' : 'billy-boy'))
 const store = require('./store')
+const geo = require('./dock')
 const faces = require('./connectors')
 
-const SIZE = 420          // the billy window square
-const SNAP = 64           // how close to an edge counts as dropped on it
-const PULL_ZONE = 150     // within this distance an edge starts to pull Billy in
+const SIZE = geo.SIZE     // the billy window square
 const CARD_W = 372
 const DIST = path.join(__dirname, '..', 'dist')
 
@@ -51,52 +50,39 @@ function setPlace(patch) {
 }
 
 // ── docking ────────────────────────────────────────────────────────────────────────────
-function dockFor(x, y) {
-  const display = screen.getDisplayNearestPoint({ x: Math.round(x + SIZE / 2), y: Math.round(y + SIZE / 2) })
-  const wa = display.workArea
-  const h = x - wa.x < SNAP ? 'l' : wa.x + wa.width - (x + SIZE) < SNAP ? 'r' : null
-  const v = y - wa.y < SNAP ? 't' : wa.y + wa.height - (y + SIZE) < SNAP ? 'b' : null
-  if (h && v) return { mode: 'corner', side: v + h, displayId: display.id }
-  if (h) return { mode: 'edge', side: h === 'l' ? 'left' : 'right', displayId: display.id }
-  if (v) return { mode: 'edge', side: v === 't' ? 'top' : 'bottom', displayId: display.id }
-  return { mode: 'float', displayId: display.id }
-}
-
-function targetFor(dock, x, y) {
-  const display = screen.getAllDisplays().find((d) => d.id === dock.displayId)
-    || screen.getDisplayNearestPoint({ x: Math.round(x + SIZE / 2), y: Math.round(y + SIZE / 2) })
-  const wa = display.workArea
-  let nx = Math.min(Math.max(x, wa.x), wa.x + wa.width - SIZE)
-  let ny = Math.min(Math.max(y, wa.y), wa.y + wa.height - SIZE)
-  const s = dock.side || ''
-  if (dock.mode === 'edge') {
-    if (s === 'left') nx = wa.x
-    if (s === 'right') nx = wa.x + wa.width - SIZE
-    if (s === 'top') ny = wa.y
-    if (s === 'bottom') ny = wa.y + wa.height - SIZE
-  } else if (dock.mode === 'corner') {
-    nx = s[1] === 'l' ? wa.x : wa.x + wa.width - SIZE
-    ny = s[0] === 't' ? wa.y : wa.y + wa.height - SIZE
-  }
-  return { x: Math.round(nx), y: Math.round(ny) }
-}
-
-/** Where Billy's centre sits inside the square for a dock. The renderer uses the same rule. */
-function anchorFor(dock, tucked) {
-  const m = tucked ? 16 : 64
-  const c = SIZE / 2, far = SIZE - m
-  if (!dock || dock.mode === 'float') return { x: c, y: c }
-  const s = dock.side
-  if (dock.mode === 'edge') return { left: { x: m, y: c }, right: { x: far, y: c }, top: { x: c, y: m }, bottom: { x: c, y: far } }[s]
-  return { x: s[1] === 'l' ? m : far, y: s[0] === 't' ? m : far }
-}
+// All positions are Billy's CENTRE on screen; app/dock.js turns that into a window and the
+// spot inside it (the anchor) where the renderer draws him.
+const displays = () => screen.getAllDisplays().map((d) => ({ id: d.id, workArea: d.workArea }))
+let anchor = { x: SIZE / 2, y: SIZE / 2 }
 
 function moveTo(x, y) {
   if (!billy || !Number.isFinite(x) || !Number.isFinite(y)) { logError('moveTo', new Error(`refused ${x}, ${y}`)); return false }
   // `|| 0` turns -0 into 0: a spring overshooting an edge at 0 rounds to -0, and Electron
   // rejects -0 as a window coordinate ("conversion failure").
-  billy.setPosition(Math.round(x) || 0, Math.round(y) || 0)
+  // setBounds, not setPosition: moving between screens with different scaling otherwise
+  // grows the window a few pixels each time, and every edge sum is built on its size.
+  billy.setBounds({ x: Math.round(x) || 0, y: Math.round(y) || 0, width: SIZE, height: SIZE })
   return true
+}
+
+/** Billy's centre on screen right now. */
+function billyCenter() {
+  const [x, y] = billy.getPosition()
+  return { x: x + anchor.x, y: y + anchor.y }
+}
+
+/** Saved place, upgraded from the old window-based format if needed. */
+function savedCenter() {
+  const p = place()
+  if (Number.isFinite(p.cx) && Number.isFinite(p.cy)) return { x: p.cx, y: p.cy }
+  if (Number.isFinite(p.x) && Number.isFinite(p.y)) {
+    const m = p.tucked ? geo.TUCK : geo.EDGE, d = p.dock || { mode: 'float' }, s = d.side || ''
+    const ax = d.mode === 'float' ? SIZE / 2 : d.mode === 'edge' ? (s === 'left' ? m : s === 'right' ? SIZE - m : SIZE / 2) : (s[1] === 'l' ? m : SIZE - m)
+    const ay = d.mode === 'float' ? SIZE / 2 : d.mode === 'edge' ? (s === 'top' ? m : s === 'bottom' ? SIZE - m : SIZE / 2) : (s[0] === 't' ? m : SIZE - m)
+    return { x: p.x + ax, y: p.y + ay }
+  }
+  const wa = screen.getPrimaryDisplay().workArea
+  return { x: wa.x + wa.width - geo.EDGE, y: wa.y + wa.height - geo.EDGE }
 }
 
 /** A damped spring: Billy carries the speed he was thrown with, lands a touch past the edge
@@ -118,15 +104,25 @@ function glideTo(x, y, v = { x: 0, y: 0 }, { stiffness = 380, damping = 22 } = {
   }, 1000 / 120)
 }
 
-function applyDock(dock, tucked = false, velocity = null, landed = false, speed = 0) {
-  const [x, y] = billy.getPosition()
-  const t = targetFor(dock, x, y)
+/**
+ * Put Billy somewhere. The renderer switches to the new anchor at once while the window is
+ * moved so Billy stays exactly where he is on screen; then the window springs to its final
+ * spot, carrying any throw speed, so the landing has weight.
+ */
+function settle(dock, center, { tucked = false, velocity = null, landed = false, speed = 0, instant = false } = {}) {
+  const L = geo.layout(displays(), dock, center, tucked)
   const tk = dock.mode === 'float' ? false : tucked
-  setPlace({ dock, tucked: tk, x: t.x, y: t.y })
-  glideTo(t.x, t.y, velocity || { x: 0, y: 0 })
-  billy.webContents.send('dock', { ...dock, tucked: tk, landed, speed })
-  debug('dock', dock, tk)
+  const finalDock = { ...dock, displayId: L.displayId }
+  const now = billyCenter()
+  anchor = L.anchor
+  billy.webContents.send('dock', { ...finalDock, tucked: tk, landed, speed, anchor: L.anchor, instant: true })
+  setPlace({ dock: finalDock, tucked: tk, cx: L.center.x, cy: L.center.y, x: L.win.x, y: L.win.y })
+  if (instant) { clearInterval(anim); moveTo(L.win.x, L.win.y); placeCard(); return }
+  moveTo(now.x - L.anchor.x, now.y - L.anchor.y)          // same spot on screen, new anchor
+  glideTo(L.win.x, L.win.y, velocity || { x: 0, y: 0 })
+  debug('settle', finalDock, tk, L)
 }
+function applyDock(dock, tucked = false) { settle(dock, savedCenter(), { tucked }) }
 
 // ── windows ────────────────────────────────────────────────────────────────────────────
 const webPreferences = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -141,33 +137,26 @@ function createBilly() {
   billy.loadFile(path.join(DIST, 'billy.html'))
   billy.setIgnoreMouseEvents(true, { forward: true })
   billy.once('ready-to-show', () => {
-    const p = place()
-    const prim = screen.getPrimaryDisplay()
-    const onScreen = p.x != null && screen.getAllDisplays().some((d) => {
-      const b = d.workArea
-      return p.x >= b.x - 1 && p.y >= b.y - 1 && p.x + SIZE <= b.x + b.width + 1 && p.y + SIZE <= b.y + b.height + 1
-    })
-    if (!onScreen) {
-      const wa = prim.workArea
-      setPlace({ x: wa.x + wa.width - SIZE, y: wa.y + wa.height - SIZE, dock: { mode: 'corner', side: 'br', displayId: prim.id }, tucked: false })
-    }
     const q = place()
-    billy.setPosition(q.x, q.y)
+    const start = geo.layout(displays(), q.dock || { mode: 'float' }, savedCenter(), !!q.tucked)
+    anchor = start.anchor
+    billy.setPosition(start.win.x, start.win.y)
     billy.showInactive()
     placed = true
     pushAll()
-    billy.webContents.send('dock', { ...(q.dock || { mode: 'float' }), tucked: !!q.tucked })
+    billy.webContents.send('dock', { ...(q.dock || { mode: 'float' }), tucked: !!q.tucked, anchor, instant: true })
     const demo = process.env.BILLY_DEMO        // test switch: BILLY_DEMO=tl, left, float, right-tuck
     if (demo) setTimeout(() => {
       const [where, t] = demo.split('-')
       const d = screen.getPrimaryDisplay()
       const dock = where.length === 2 ? { mode: 'corner', side: where, displayId: d.id }
         : where === 'float' ? { mode: 'float', displayId: d.id } : { mode: 'edge', side: where, displayId: d.id }
-      billy.setPosition(d.workArea.x + Math.round(d.workArea.width / 2) - SIZE / 2, d.workArea.y + Math.round(d.workArea.height / 2) - SIZE / 2)
-      applyDock(dock, t === 'tuck')
+      const mid = { x: d.workArea.x + d.workArea.width / 2, y: d.workArea.y + d.workArea.height / 2 }
+      settle(dock, mid, { tucked: t === 'tuck', instant: true })
       if (process.env.BILLY_OPEN) setTimeout(() => billy.webContents.send('demo-open', process.env.BILLY_OPEN), 900)
       if (process.env.BILLY_CARD) setTimeout(() => showCard(process.env.BILLY_CARD), 1800)
       if (process.env.BILLY_ROOM) setTimeout(() => openRoom(process.env.BILLY_ROOM), 600)
+      if (process.env.BILLY_DRAGTEST) setTimeout(() => dragTest().catch((e) => console.log('DRAGTEST ERROR', e.stack)), 900)
       // Test switch: BILLY_SNAP=<folder> saves each window's own pixels there, without
       // capturing the user's screen.
       if (process.env.BILLY_SNAP) setTimeout(async () => {
@@ -180,6 +169,46 @@ function createBilly() {
       }, Number(process.env.BILLY_SNAP_AFTER || 3500))
     }, 600)
   })
+}
+
+/** Test switch: drags Billy around every screen through the real drag handlers and reports. */
+async function dragTest() {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+  const fake = { sender: billy.webContents }
+  const results = []
+  for (const d of screen.getAllDisplays()) {
+    const wa = d.workArea
+    const cases = [
+      ['left edge, 60px off', { x: wa.x + 60, y: wa.y + wa.height / 2 }, 0],
+      ['right edge, exactly on it', { x: wa.x + wa.width, y: wa.y + wa.height / 3 }, 0],
+      ['top-left corner', { x: wa.x + 30, y: wa.y + 30 }, 0],
+      ['bottom-right, far off screen', { x: wa.x + wa.width + 900, y: wa.y + wa.height + 900 }, 0],
+      ['250px from left (should float)', { x: wa.x + 250, y: wa.y + wa.height / 2 }, 0],
+      ['middle', { x: wa.x + wa.width / 2, y: wa.y + wa.height / 2 }, 0],
+      ['flick toward bottom edge', { x: wa.x + wa.width / 2, y: wa.y + wa.height - 260 }, 3500],
+      ['near the top, 40px from left corner zone', { x: wa.x + 140, y: wa.y + 20 }, 0],
+    ]
+    for (const [name, target, flick] of cases) {
+      const c = billyCenter()
+      ipcMain.emit('drag-start', fake, { sx: c.x, sy: c.y })
+      const steps = 14
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps
+        ipcMain.emit('drag-move', fake, { sx: c.x + (target.x - c.x) * t, sy: c.y + (target.y - c.y) * t + (flick && i > steps - 3 ? flick * 0.016 * (i - steps + 3) : 0) })
+        await wait(16)
+      }
+      ipcMain.emit('drag-end', fake)
+      await wait(1400)
+      const b = billy.getBounds(), cc = billyCenter()
+      const on = screen.getAllDisplays().find((x) => cc.x >= x.workArea.x && cc.x <= x.workArea.x + x.workArea.width && cc.y >= x.workArea.y && cc.y <= x.workArea.y + x.workArea.height)
+      const wa2 = on?.workArea
+      const winOn = wa2 && b.x >= wa2.x && b.y >= wa2.y && b.x + b.width <= wa2.x + wa2.width && b.y + b.height <= wa2.y + wa2.height
+      const bodyOn = wa2 && cc.x - 58 >= wa2.x && cc.y - 58 >= wa2.y && cc.x + 58 <= wa2.x + wa2.width && cc.y + 58 <= wa2.y + wa2.height
+      results.push({ display: d.id, name, bounds: [b.x, b.y, b.width, b.height], dock: place().dock.mode + (place().dock.side ? ':' + place().dock.side : ''), center: [Math.round(cc.x), Math.round(cc.y)], winOn: !!winOn, bodyOn: !!bodyOn })
+    }
+  }
+  console.log('DRAGTEST ' + JSON.stringify(results))
+  app.quit()
 }
 
 function createCard() {
@@ -198,15 +227,12 @@ function openRoom(section) {
     title: "Billy's room", show: false, webPreferences,
   })
   room.loadFile(path.join(DIST, 'room.html'), section ? { hash: section } : undefined)
+  if (avatarIcon) room.setIcon(avatarIcon)
   room.once('ready-to-show', () => room.show())
   room.on('closed', () => { room = null })
 }
 
-function anchorOnScreen() {
-  const [x, y] = billy.getPosition()
-  const a = anchorFor(place().dock, place().tucked)
-  return { x: x + a.x, y: y + a.y }
-}
+function anchorOnScreen() { return billyCenter() }
 
 let cardH = 300
 function placeCard() {
@@ -249,7 +275,7 @@ function cardSide() {
 function pushAll() {
   const snap = faces.snapshot()
   const s = store.get()
-  billy && billy.webContents.send('state', { faces: snap, look: s.look, pinned: s.pinned, quiet: s.quiet, sound: s.sound !== false })
+  billy && billy.webContents.send('state', { faces: snap, look: s.look, pinned: s.pinned, quiet: s.quiet, sound: !process.env.BILLY_DEMO && s.sound !== false })
   if (card && cardFace) { const f = snap.find((x) => x.uid === cardFace); if (f) card.webContents.send('card', { face: f, side: cardSide(), color: store.get().look?.color }) }
   room && room.webContents.send('room-state', roomState())
 }
@@ -288,44 +314,38 @@ function volume(cmd) {
 let drag = null
 ipcMain.on('hit', (_e, over) => { if (billy) billy.setIgnoreMouseEvents(!over && !drag, { forward: true }) })
 ipcMain.on('drag-start', (_e, { sx, sy }) => {
-  const [x, y] = billy.getPosition()
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return
   clearInterval(anim)
-  drag = { ox: sx - x, oy: sy - y, moved: false, vx: 0, vy: 0, lt: 0, lx: x, ly: y }
+  const c = billyCenter()
+  drag = { gx: sx - c.x, gy: sy - c.y, moved: false, vx: 0, vy: 0, lt: 0, lx: c.x, ly: c.y }
   billy.setIgnoreMouseEvents(false)
   hideCard()
 })
 ipcMain.on('drag-move', (_e, { sx, sy }) => {
   if (!drag || !Number.isFinite(sx) || !Number.isFinite(sy)) return
   if (!drag.moved) {
+    // Lifted off: Billy becomes a free drop, centred in his window, wherever he was.
     drag.moved = true
+    const c = billyCenter()
+    anchor = { x: SIZE / 2, y: SIZE / 2 }
+    billy.webContents.send('dock', { mode: 'float', tucked: false, lifted: true, anchor, instant: true })
+    moveTo(c.x - anchor.x, c.y - anchor.y)
     setPlace({ dock: { mode: 'float' }, tucked: false })
-    billy.webContents.send('dock', { mode: 'float', tucked: false, lifted: true })
   }
-  const rx = sx - drag.ox, ry = sy - drag.oy
+  // Billy follows the pointer, held on a screen, pulled toward an edge he comes near.
+  const p = geo.dragPoint(displays(), { x: sx - drag.gx, y: sy - drag.gy })
   const now = Date.now()
   if (drag.lt) {
     const dt = Math.max(1, now - drag.lt) / 1000
-    drag.vx = drag.vx * 0.6 + ((rx - drag.lx) / dt) * 0.4
-    drag.vy = drag.vy * 0.6 + ((ry - drag.ly) / dt) * 0.4
+    drag.vx = drag.vx * 0.6 + ((p.x - drag.lx) / dt) * 0.4
+    drag.vy = drag.vy * 0.6 + ((p.y - drag.ly) / dt) * 0.4
   }
-  drag.lt = now; drag.lx = rx; drag.ly = ry
-  // Magnetism, measured from Billy (not the square): the nearest edge or corner pulls harder
-  // the closer he gets, and he starts to melt toward it before he is let go.
-  const wa = screen.getDisplayNearestPoint({ x: Math.round(rx + SIZE / 2), y: Math.round(ry + SIZE / 2) }).workArea
-  const dl = rx - wa.x, dr = wa.x + wa.width - (rx + SIZE), dtp = ry - wa.y, db = wa.y + wa.height - (ry + SIZE)
-  const nearX = Math.min(dl, dr), nearY = Math.min(dtp, db)
-  const ease = (t) => t * t * (3 - 2 * t)
-  const sx2 = Math.max(0, 1 - nearX / PULL_ZONE), sy2 = Math.max(0, 1 - nearY / PULL_ZONE)
-  const px = sx2 > 0 ? (dl < dr ? wa.x : wa.x + wa.width - SIZE) : rx
-  const py = sy2 > 0 ? (dtp < db ? wa.y : wa.y + wa.height - SIZE) : ry
-  if (!moveTo(rx + (px - rx) * ease(sx2) * 0.45, ry + (py - ry) * ease(sy2) * 0.45)) return
-  const h = sx2 > 0 ? (dl < dr ? 'l' : 'r') : null
-  const v = sy2 > 0 ? (dtp < db ? 't' : 'b') : null
-  billy.webContents.send('near', {
-    mode: h && v ? 'corner' : (h || v) ? 'edge' : 'float',
-    side: h && v ? v + h : h ? (h === 'l' ? 'left' : 'right') : v ? (v === 't' ? 'top' : 'bottom') : null,
-    strength: Math.max(ease(sx2), ease(sy2)),
-  })
+  drag.lt = now; drag.lx = p.x; drag.ly = p.y
+  if (!moveTo(p.x - anchor.x, p.y - anchor.y)) return
+  // Where each pulling screen edge is inside the window, so the goo can reach for it.
+  const [wx, wy] = [p.x - anchor.x, p.y - anchor.y]
+  billy.webContents.send('near', p.near.map((n) => ({ side: n.side, strength: n.strength,
+    at: n.side === 'left' || n.side === 'right' ? n.screen - wx : n.screen - wy })))
 })
 ipcMain.on('drag-end', () => {
   if (!drag) return
@@ -333,11 +353,22 @@ ipcMain.on('drag-end', () => {
   const vx = Number.isFinite(drag.vx) ? drag.vx : 0, vy = Number.isFinite(drag.vy) ? drag.vy : 0
   drag = null
   if (!moved) return
-  const [x, y] = billy.getPosition()
-  const dock = dockFor(x + vx * 0.12, y + vy * 0.12)      // a flick carries
-  applyDock(dock, false, { x: vx * 0.6, y: vy * 0.6 }, dock.mode !== 'float', Math.min(1, Math.hypot(vx, vy) / 2500))
+  billy.webContents.send('near', [])
+  const r = geo.decide(displays(), billyCenter(), { x: vx, y: vy })
+  settle(r.dock, r.center, { velocity: { x: vx * 0.5, y: vy * 0.5 }, landed: r.dock.mode !== 'float', speed: Math.min(1, Math.hypot(vx, vy) / 2500) })
 })
 ipcMain.on('toggle-tuck', () => { const p = place(); if (p.dock && p.dock.mode !== 'float') applyDock(p.dock, !p.tucked) })
+// Billy's own face is the app icon (taskbar, tray, window): snapshotted by the renderer.
+let avatarIcon = null
+ipcMain.on('set-icon', (_e, url) => {
+  if (typeof url !== 'string' || !url.startsWith('data:image/png;base64,') || url.length > 2_000_000) return
+  const img = nativeImage.createFromDataURL(url)
+  if (img.isEmpty()) return
+  avatarIcon = img
+  if (process.env.BILLY_SNAP) fs.writeFileSync(path.join(process.env.BILLY_SNAP, 'snap_icon.png'), img.toPNG())
+  for (const w of [billy, card, room]) if (w && !w.isDestroyed()) w.setIcon(img)
+  if (tray) tray.setImage(img.resize({ width: 32, height: 32, quality: 'best' }))
+})
 ipcMain.on('pin', (_e, uid) => { store.set({ pinned: uid }); pushAll() })
 ipcMain.on('open-card', (_e, uid) => (cardFace === uid && card.isVisible() ? hideCard() : showCard(uid)))
 ipcMain.on('close-card', () => hideCard())
@@ -499,12 +530,7 @@ function buildTray() {
 function summon() {
   if (!billy) return
   const p = screen.getCursorScreenPoint()
-  const d = screen.getDisplayNearestPoint(p)
-  const dock = { mode: 'float', displayId: d.id }
-  billy.webContents.send('dock', { mode: 'float', tucked: false })
-  const t = targetFor(dock, p.x - SIZE / 2, p.y - SIZE / 2)
-  setPlace({ dock, tucked: false, x: t.x, y: t.y })
-  glideTo(t.x, t.y)
+  settle({ mode: 'float' }, p)
   billy.showInactive()
 }
 
@@ -522,7 +548,7 @@ else app.whenReady().then(() => {
   globalShortcut.register('Control+Alt+B', summon)
   screen.on('display-metrics-changed', () => {
     if (!billy || !placed || drag) return
-    applyDock(place().dock || { mode: 'float' }, place().tucked)
+    settle(place().dock || { mode: 'float' }, savedCenter(), { tucked: !!place().tucked, instant: true })
   })
   if (!store.get().onboarded && !process.env.BILLY_DEMO) setTimeout(() => openRoom('welcome'), 900)
 })

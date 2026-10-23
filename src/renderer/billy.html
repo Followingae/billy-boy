@@ -21,6 +21,7 @@
   .urgent::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--alert);
     animation: ping 1.8s cubic-bezier(0, 0, .2, 1) infinite; }
   @keyframes ping { 75%, 100% { transform: scale(2.4); opacity: 0 } }
+  .bot.instant { transition: none; }
   .bot.squash { animation: squash 380ms cubic-bezier(.3, 1.6, .5, 1); }
   @keyframes squash { 0% { transform: translate(-50%, -50%) scale(1.08, .86) } 100% { transform: translate(-50%, -50%) scale(1) } }
 
