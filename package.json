@@ -16,6 +16,7 @@
     "files": [
       "app/**/*",
       "dist/**/*",
+      "examples/**/*",
       "package.json"
     ],
     "asarUnpack": [
@@ -23,6 +24,12 @@
     ],
     "win": {
       "target": "portable"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "portable": {
+      "artifactName": "BillyBoy-${version}-portable.exe"
     }
   },
   "dependencies": {
@@ -41,5 +48,10 @@
   "allowScripts": {
     "electron@33.2.1": true,
     "esbuild@0.24.2": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Followingae/billy-boy.git"
+  },
+  "author": "Zain Khan"
 }

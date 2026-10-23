@@ -39,18 +39,27 @@ playbook from `examples/outreach/`: it finds investors or buyers, researches the
 to read and send. The playbooks forbid sending, and they forbid inventing numbers.
 See `examples/outreach/FORMAT.md` for the file format.
 
-## Install
+## Get Billy
 
-You need [Node.js](https://nodejs.org) 20 or newer, on Windows 10 or 11.
+**Just want to use him?** Download `BillyBoy-portable.exe` from the
+[latest release](https://github.com/Followingae/billy-boy/releases/latest) and double-click it.
+No install, no account. Windows 10 or 11.
+
+Windows may say "Windows protected your PC" because the app isn't code-signed yet: click
+**More info**, then **Run anyway**. Billy's room opens on first run so you can give him faces.
+
+**Want to change him?** Fork this repo (the Fork button, top right), then:
 
 ```bash
-git clone https://github.com/<you>/billy-boy.git
+git clone https://github.com/<your-username>/billy-boy.git
 cd billy-boy
 npm install
 npm run start
 ```
 
-`npm run dist` builds a single portable `Billy Boy.exe` in `release/`.
+You need [Node.js](https://nodejs.org) 20 or newer. `npm run dist` builds your own portable
+`.exe` in `release/`. Your fork is yours: changes there never touch this repo. If you build
+something others would like, open a pull request.
 
 ## Your accounts stay yours
 
