@@ -1,6 +1,6 @@
 {
   "name": "billy-boy",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Billy Boy: a little desktop companion that snaps to your screen edges and tells you what needs you.",
   "license": "MIT",
   "private": false,

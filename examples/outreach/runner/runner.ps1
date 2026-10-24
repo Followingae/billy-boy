@@ -139,6 +139,46 @@ function Invoke-Claude($prompt, $model, $budget, $minutes) {
   return @{ ok = ($p.ExitCode -eq 0); text = $text }
 }
 
+# Billy's Send items whose draft we should check (sent by hand, or deleted).
+function Draft-Ids {
+  $p = Join-Path $Root 'billy_state.json'
+  try { $s = [IO.File]::ReadAllText($p) -replace "^﻿", '' | ConvertFrom-Json } catch { return @() }
+  $ids = @()
+  foreach ($it in @($s.items)) {
+    $d = if ($it.draftId) { $it.draftId } elseif ("$($it.url)" -match 'msg-a:(r-?\d+)') { $Matches[1] } else { $null }
+    if ($d) { $ids += $d }
+  }
+  return $ids
+}
+# Applies "DRAFT <id> SENT|DELETED" lines from a check: Billy drops the item; a deleted draft is
+# a no (that person is not chased again).
+function Settle-Drafts($text) {
+  $res = @{}
+  foreach ($l in ($text -split "`n")) { if ($l -match '^DRAFT\s+(r-?\d+)\s+(SENT|DELETED)') { $res[$Matches[1]] = $Matches[2] } }
+  if (-not $res.Count) { return }
+  $p = Join-Path $Root 'billy_state.json'
+  $s = [IO.File]::ReadAllText($p) -replace "^﻿", '' | ConvertFrom-Json
+  $keep = @(); $dropped = @()
+  foreach ($it in @($s.items)) {
+    $d = if ($it.draftId) { $it.draftId } elseif ("$($it.url)" -match 'msg-a:(r-?\d+)') { $Matches[1] } else { $null }
+    if ($d -and $res.ContainsKey($d)) { $dropped += [pscustomobject]@{ item = $it; how = $res[$d] } } else { $keep += $it }
+  }
+  if (-not $dropped.Count) { return }
+  $s.items = $keep
+  Set-Field $s 'value' ([string]$keep.Count); Set-Field $s 'count' $keep.Count
+  Save-Json $p $s
+  $dpath = Join-Path $Root 'dismissed.json'
+  $dis = if (Test-Path $dpath) { [IO.File]::ReadAllText($dpath) -replace "^﻿", '' | ConvertFrom-Json } else { [pscustomobject]@{ note = 'Suggestions the user rejected.'; dismissed = @() } }
+  foreach ($x in $dropped) {
+    Log ("draft {0}: {1}" -f $x.how.ToLower(), $x.item.title)
+    if ($x.how -eq 'DELETED') {
+      $key = ("$($x.item.id)", "$($x.item.who)", "$($x.item.title)" | Where-Object { $_ } | Select-Object -First 1).ToLower()
+      $dis.dismissed = @($dis.dismissed) + [pscustomobject]@{ key = $key; title = $x.item.title; who = $x.item.who; at = (Get-Date).ToString('o'); reason = 'the user deleted the draft' }
+    }
+  }
+  Save-Json $dpath $dis
+}
+
 # ── main ────────────────────────────────────────────────────────────────────────────────
 if (Test-Path $Hold) { exit 0 }
 if (Test-Path $Lock) {
@@ -170,8 +210,10 @@ try {
   $stamp = $now.ToString('yyyy-MM-dd_HHmm')
 
   if ($mode -eq 'check') {
-    $r = Invoke-Claude "QUICK CHECK. Follow the 'QUICK CHECK' section of PLAYBOOK.md exactly. SINCE = $since. Today is $($now.ToString('dddd d MMMM yyyy, HH:mm')) local time." $FastModel 0.5 8
+    $drafts = (Draft-Ids) -join ' '
+    $r = Invoke-Claude "QUICK CHECK. Follow the 'QUICK CHECK' section of PLAYBOOK.md exactly. SINCE = $since. Today is $($now.ToString('dddd d MMMM yyyy, HH:mm')) local time. DRAFTS TO CHECK: $drafts" $FastModel 0.5 8
     Set-Field $st 'last_check' $now.ToString('o')
+    try { Settle-Drafts $r.text } catch { Log "settle drafts error: $($_.Exception.Message)" }
     $last = ($r.text -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 1)
     if ($r.ok -and $last -match '^NEEDS_RUN') { Log "check: $last"; $mode = 'full' }
     elseif ($r.ok) { Log 'check: nothing new'; Set-Field $st 'last_result' 'nothing new'; Touch-Billy 'checked, nothing new' }

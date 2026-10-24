@@ -55,7 +55,10 @@ The prompt gives you `SINCE` (the last check). Do only this, then stop:
 2. Mail the user SENT after SINCE to those prospects.
 3. Meetings with them in the next 48 hours that have no `prep/` note yet, and meetings that ended after SINCE.
 4. Follow-ups in `accounts.json` due today or earlier with no draft yet.
-Print one final line: `NEEDS_RUN: <short reasons>` if anything turned up, otherwise `NOTHING`.
+5. DRAFTS TO CHECK (ids given in the prompt): for each, call get_draft. If it still exists, print nothing for it.
+   If it is gone, search_threads `in:sent` (and `in:scheduled`) for the same recipient in the last 7 days:
+   print `DRAFT <id> SENT` if he sent or scheduled it, otherwise `DRAFT <id> DELETED`.
+Print the DRAFT lines, then one final line: `NEEDS_RUN: <short reasons>` if anything turned up, otherwise `NOTHING`.
 Do not draft or write files in a quick check.
 
 ### FULL RUN (when a quick check says NEEDS_RUN, or catching up after the PC was off)
@@ -69,3 +72,7 @@ Everything in "Each run", plus fresh sourcing and research, tidying the list, an
 - Every draft you put on Billy carries a `send` field: "first", "followup" or "reply". Billy only asks
   the user to send first emails and follow-ups in working hours (default Mon to Fri, 9:00 to 18:00)
   and replies until 22:00, so drafts can be written at any hour. The face's settings change the hours.
+
+
+## Drafts on Billy
+Every "Send:" item carries `draftId` (the Gmail draft id from create_draft) and `url` (its viewUrl). Never put a draft on Billy that no longer exists (check with get_draft). The user sends or schedules drafts himself in Gmail; the runner drops sent and deleted ones from Billy, and a deleted draft means "do not chase this one".

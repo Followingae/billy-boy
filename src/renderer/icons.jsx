@@ -2,7 +2,7 @@ import {
   Volume2, VolumeX, Music2, CalendarDays, Mail, Github, CloudSun, Timer, Rocket, Handshake, Braces, Puzzle,
   BadgeCheck, Wallet, Workflow, Activity, Inbox, Target, Users, Bell, Star, Zap, Briefcase, TrendingUp, Play,
   Pause, SkipForward, SkipBack, Square, Settings2, Plus, Heart, Coffee, BarChart3, X, ChevronRight, ArrowUpRight,
-  GripVertical, Trash2, Check, RefreshCw, FolderOpen, Sparkles, Copy, Link2, Moon,
+  GripVertical, Trash2, Check, RefreshCw, FolderOpen, Sparkles, Copy, Link2, Moon, Send,
 } from 'lucide-react'
 
 export const ICONS = {
@@ -12,7 +12,7 @@ export const ICONS = {
   briefcase: Briefcase, trend: TrendingUp, chart: BarChart3, heart: Heart, coffee: Coffee,
   play: Play, pause: Pause, next: SkipForward, prev: SkipBack, stop: Square, settings: Settings2, plus: Plus, x: X,
   chevron: ChevronRight, out: ArrowUpRight, grip: GripVertical, trash: Trash2, ok: Check, refresh: RefreshCw,
-  folder: FolderOpen, sparkles: Sparkles, copy: Copy, link: Link2, moon: Moon,
+  folder: FolderOpen, sparkles: Sparkles, copy: Copy, link: Link2, moon: Moon, send: Send,
 }
 
 /** Icons a face can wear (the room's picker). */
