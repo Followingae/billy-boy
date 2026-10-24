@@ -51,7 +51,7 @@ booked this month of the target in `offer.md`. `funnel` = Found, Contacted, Repl
 
 ### QUICK CHECK (every 10 minutes; fast and cheap)
 The prompt gives you `SINCE` (the last check). Do only this, then stop:
-1. Mail received after SINCE (and at least 30 minutes ago) from anyone in `accounts.json`, or replies on threads you drafted.
+1. Unanswered sweep (ignores SINCE, so a reply never falls through a gap): threads from the last 7 days with anyone in `accounts.json` whose LAST message is theirs, at least 30 minutes old, with no later message or draft from you.
 2. Mail the user SENT after SINCE to those prospects.
 3. Meetings with them in the next 48 hours that have no `prep/` note yet, and meetings that ended after SINCE.
 4. Follow-ups in `accounts.json` due today or earlier with no draft yet.
@@ -60,6 +60,9 @@ The prompt gives you `SINCE` (the last check). Do only this, then stop:
    print `DRAFT <id> SENT` if he sent or scheduled it, otherwise `DRAFT <id> DELETED`.
 Print the DRAFT lines, then one final line: `NEEDS_RUN: <short reasons>` if anything turned up, otherwise `NOTHING`.
 Do not draft or write files in a quick check.
+
+### OUTREACH RUN (the runner starts one when fewer than 8 first-touch drafts are waiting)
+Do only the New outreach step. Drafts can be written any day or hour; only sending waits for the send window, and Billy says when to schedule each. Never skip it as "for later".
 
 ### FULL RUN (when a quick check says NEEDS_RUN, or catching up after the PC was off)
 Do "Each run", skipping new sourcing unless the deep run is overdue.

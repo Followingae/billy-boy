@@ -182,7 +182,7 @@ function Settle-Drafts($text) {
 # ── main ────────────────────────────────────────────────────────────────────────────────
 if (Test-Path $Hold) { exit 0 }
 if (Test-Path $Lock) {
-  if ((Age-Min (Get-Item $Lock).LastWriteTime.ToString('o')) -lt 45) { exit 0 }   # a run is still going
+  if ((Age-Min (Get-Item $Lock).LastWriteTime.ToString('o')) -lt 120) { exit 0 }  # a run is still going
   Remove-Item $Lock -Force                                                      # stale lock
 }
 $st = Load-Status
@@ -211,7 +211,7 @@ try {
 
   if ($mode -eq 'check') {
     $drafts = (Draft-Ids) -join ' '
-    $r = Invoke-Claude "QUICK CHECK. Follow the 'QUICK CHECK' section of PLAYBOOK.md exactly. SINCE = $since. Today is $($now.ToString('dddd d MMMM yyyy, HH:mm')) local time. DRAFTS TO CHECK: $drafts" $FastModel 0.5 8
+    $r = Invoke-Claude "QUICK CHECK. Follow the 'QUICK CHECK' section of PLAYBOOK.md exactly (the unanswered sweep looks back 7 days whatever SINCE says). SINCE = $since. Today is $($now.ToString('dddd d MMMM yyyy, HH:mm')) local time. DRAFTS TO CHECK: $drafts" $FastModel 0.8 10
     Set-Field $st 'last_check' $now.ToString('o')
     try { Settle-Drafts $r.text } catch { Log "settle drafts error: $($_.Exception.Message)" }
     $last = ($r.text -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 1)
@@ -228,6 +228,17 @@ try {
     if ($mode -eq 'deep') { Set-Field $st 'last_deep' $now.ToString('o') }
     Set-Field $st 'last_result' ("{0} {1}" -f $mode, $(if ($r.ok) { 'done' } else { 'failed' }))
     Touch-Billy ("{0} run {1}" -f $mode, $(if ($r.ok) { 'done' } else { 'failed, see runner.log' }))
+  }
+  # New outreach never waits for a weekday or the night: keep at least 8 first touches drafted
+  # (Billy says when to schedule each). At most one try every 3 hours.
+  $firsts = 0
+  try { $firsts = @((Get-Content (Join-Path $Root 'billy_state.json') -Raw | ConvertFrom-Json).items | Where-Object { $_.send -eq 'first' }).Count } catch {}
+  if ($firsts -lt 8 -and (Age-Min $st.last_outreach) -gt 180) {
+    $stamp = (Get-Date).ToString('yyyy-MM-dd_HHmm') + '_outreach'
+    $r = Invoke-Claude "OUTREACH RUN. Follow the 'OUTREACH RUN' section of PLAYBOOK.md exactly. $firsts first-touch drafts are waiting; draft up to $(8 - $firsts) more. Today is $((Get-Date).ToString('dddd d MMMM yyyy, HH:mm')) local time. Write the run log to runs/$stamp.md." $SmartModel 5 45 -tag 'outreach'
+    Log ("outreach run {0}" -f $(if ($r.ok) { 'done' } else { 'FAILED' }))
+    Set-Field $st 'last_outreach' (Get-Date).ToString('o')
+    Touch-Billy ("outreach run {0}" -f $(if ($r.ok) { 'done' } else { 'failed, see runner.log' }))
   }
   Save-Json $Status $st
 } catch {
