@@ -81,7 +81,9 @@ function makeRoom(points, hoverIdx, pill, anchor, padR) {
 // edge one. Faces popping out are tiny bubbles. Everything is synthesised, no audio files.
 let audio = null, bus = null
 function out() {
-  if (audio) return bus
+  // A suspended context plays nothing and says nothing. Resume it rather than trust that
+  // it is running: a restart or a sleep can leave it parked.
+  if (audio) { if (audio.state === 'suspended') audio.resume().catch(() => {}); return bus }
   audio = new AudioContext()
   bus = audio.createGain(); bus.gain.value = 0.9
   const comp = audio.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4

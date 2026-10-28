@@ -18,6 +18,11 @@ const path = require('path')
 const fs = require('fs')
 const { spawn } = require('child_process')
 
+// Billy's sounds are synthesised in his window, and Chromium keeps a page's audio suspended
+// until the user clicks inside it. Dragging him is not a click, so after any restart he
+// landed in silence until someone happened to click his face. He is an app, not a web page.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 // Test runs (BILLY_DEMO) get their own folder and skip the single-instance lock, so they
 // never touch, move or hand off to the user's running Billy.
 app.setPath('userData', path.join(app.getPath('appData'), process.env.BILLY_DEMO ? 'billy-boy-demo' : 'billy-boy'))
