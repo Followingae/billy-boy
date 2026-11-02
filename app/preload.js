@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('billy', {
   // card
   onCard: on('card'),
   cardSize: (h) => ipcRenderer.send('card-size', h),
+  cardBig: (big) => ipcRenderer.send('card-big', big),
+  onDemoBig: on('demo-big'),
   openUrl: (u) => ipcRenderer.send('open-url', u),
   openPath: (p) => ipcRenderer.send('open-path', p),
   act: (uid, id) => ipcRenderer.invoke('act', uid, id),

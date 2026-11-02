@@ -57,15 +57,27 @@ function Row({ it, uid, onDismiss }) {
 function Card() {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(null)
+  // Expanded: a wide card, every line in full, as tall as the screen allows. Opening another
+  // face's card starts small again.
+  const [big, setBig] = useState(false)
   const ref = useRef(null)
   const leave = useRef(null)
-  useEffect(() => window.billy.onCard(setData), [])
+  useEffect(() => window.billy.onCard((d) => {
+    setData((prev) => { if (prev?.face?.uid !== d?.face?.uid) { setBig(false); window.billy.cardBig(false) } return d })
+  }), [])
   useEffect(() => {
     if (!ref.current) return
-    const ro = new ResizeObserver(() => window.billy.cardSize(Math.ceil(ref.current.getBoundingClientRect().height) + 28))
+    // scrollHeight, not the box: an expanded card is capped by its own window, and measuring
+    // the capped box would never let the window grow.
+    const report = () => window.billy.cardSize(Math.ceil(ref.current.scrollHeight) + 28)
+    const ro = new ResizeObserver(report)
     ro.observe(ref.current)
+    for (const el of ref.current.querySelectorAll('.list')) ro.observe(el)
+    report()
     return () => ro.disconnect()
-  }, [data?.face?.uid])
+  }, [data?.face?.uid, big])
+  useEffect(() => window.billy.onDemoBig(() => { setBig(true); window.billy.cardBig(true) }), [])
+  const toggleBig = () => { const b = !big; setBig(b); window.billy.cardBig(b) }
   if (!data) return null
   const { face } = data
   const r = face.result || {}
@@ -75,7 +87,7 @@ function Card() {
   const act = async (id) => { setBusy(id); await window.billy.act(face.uid, id); setBusy(null) }
 
   return (
-    <div className="wrap" onMouseLeave={() => { leave.current = setTimeout(() => window.billy.closeCard(), 1600) }}
+    <div className={`wrap ${big ? 'big' : ''}`} onMouseLeave={() => { if (!big) leave.current = setTimeout(() => window.billy.closeCard(), 1600) }}
       onMouseEnter={() => clearTimeout(leave.current)}>
       <div ref={ref} className="card" style={{ '--u': URGENT[u], '--billy': toneOf(data.color) }}>
         <header>
@@ -85,6 +97,9 @@ function Card() {
             <span className="cap">{face.error && !face.result ? 'Needs setup' : r.caption}{r.updated ? ` · ${r.updated}` : ''}</span>
           </div>
           {r.value ? <span className="value">{r.value}</span> : null}
+          <button className="x" onClick={toggleBig} aria-label={big ? 'Shrink' : 'Expand'} title={big ? 'Shrink' : 'Expand'}>
+            <Icon name={big ? 'shrink' : 'grow'} size={14} />
+          </button>
           <button className="x" onClick={() => window.billy.closeCard()} aria-label="Close"><Icon name="x" size={15} /></button>
         </header>
 
@@ -112,13 +127,13 @@ function Card() {
         {items.length > 0 && (
           <div className="list">
             {r.funnel || r.goal ? <h4>Waiting on you</h4> : null}
-            {items.slice(0, 25).map((it) => <Row key={it.key || it.title} it={it} uid={face.uid} onDismiss={(x) => act(`dismiss:${x.key}`)} />)}
+            {items.slice(0, big ? 200 : 25).map((it) => <Row key={it.key || it.title} it={it} uid={face.uid} onDismiss={(x) => act(`dismiss:${x.key}`)} />)}
           </div>
         )}
         {r.inbox?.items?.length > 0 && (
           <div className="list">
             <h4>Inbox · {r.inbox.count} unread</h4>
-            {r.inbox.items.slice(0, 6).map((it, i) => <Row key={i} it={it} uid={face.uid} />)}
+            {r.inbox.items.slice(0, big ? 50 : 6).map((it, i) => <Row key={i} it={it} uid={face.uid} />)}
           </div>
         )}
         {face.type === 'outreach' && <p className="rule">Billy never sends. Open a draft, read it, send it yourself.</p>}

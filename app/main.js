@@ -32,6 +32,7 @@ const faces = require('./connectors')
 
 const SIZE = geo.SIZE     // the billy window square
 const CARD_W = 372
+const BASE_CARD_W = CARD_W
 const DIST = path.join(__dirname, '..', 'dist')
 
 let billy = null, card = null, room = null, tray = null
@@ -177,6 +178,7 @@ function createBilly() {
       settle(dock, mid, { tucked: t === 'tuck', instant: true })
       if (process.env.BILLY_OPEN) setTimeout(() => billy.webContents.send('demo-open', process.env.BILLY_OPEN), 900)
       if (process.env.BILLY_CARD) setTimeout(() => showCard(process.env.BILLY_CARD), 1800)
+      if (process.env.BILLY_BIG) setTimeout(() => card.webContents.send('demo-big'), 2600)
       if (process.env.BILLY_ROOM) setTimeout(() => openRoom(process.env.BILLY_ROOM), 600)
       if (process.env.BILLY_DRAGTEST) setTimeout(() => dragTest().catch((e) => console.log('DRAGTEST ERROR', e.stack)), 900)
       // Test switch: BILLY_SNAP=<folder> saves each window's own pixels there, without
@@ -259,10 +261,14 @@ function openRoom(section) {
 function anchorOnScreen() { return billyCenter() }
 
 let cardH = 300
+let cardBig = false
 function placeCard() {
-  if (!card || !billy || !card.isVisible()) return
+  if (!alive(card) || !alive(billy) || !card.isVisible()) return
   const a = anchorOnScreen()
   const wa = screen.getDisplayNearestPoint({ x: Math.round(a.x), y: Math.round(a.y) }).workArea
+  // Expanded cards are wider and may use the whole height of the screen.
+  const CARD_W = cardBig ? Math.min(640, wa.width - 16) : BASE_CARD_W
+  cardH = Math.min(cardH, wa.height - 16)
   const d = place().dock || { mode: 'float' }
   const reach = 74      // just past Billy's pad
   let x, y
@@ -288,7 +294,9 @@ function showCard(uid) {
   placeCard()
   billy.webContents.send('card-open', uid)
 }
-function hideCard() { if (alive(card)) card.hide(); cardFace = null; alive(billy) && billy.webContents.send('card-open', null) }
+function hideCard() {
+  if (alive(card)) { card.hide(); card.webContents.send('card', null); card.setFocusable(false) }
+  cardBig = false; cardFace = null; alive(billy) && billy.webContents.send('card-open', null) }
 function cardSide() {
   const d = place().dock || {}
   if (d.mode === 'edge') return { left: 'left', right: 'right', top: 'top', bottom: 'bottom' }[d.side]
@@ -425,7 +433,8 @@ ipcMain.on('menu', (_e, uid) => {
 })
 
 // ── card ipc ───────────────────────────────────────────────────────────────────────────
-ipcMain.on('card-size', (_e, h) => { if (Number.isFinite(h)) { cardH = Math.min(Math.max(h, 120), 640); placeCard() } })
+ipcMain.on('card-size', (_e, h) => { if (Number.isFinite(h)) { cardH = Math.min(Math.max(h, 120), cardBig ? 4000 : 640); placeCard() } })
+ipcMain.on('card-big', (_e, big) => { cardBig = !!big; if (alive(card)) card.setFocusable(cardBig); placeCard() })
 ipcMain.on('open-url', (_e, url) => { if (/^https:\/\//.test(url || '')) shell.openExternal(url) })
 ipcMain.on('open-path', (_e, p) => { if (p && fs.existsSync(p)) shell.openPath(p) })
 ipcMain.handle('act', async (_e, uid, id) => { try { await faces.act(uid, id); return { ok: true } } catch (e) { return { ok: false, error: e.message } } })

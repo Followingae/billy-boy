@@ -65,6 +65,14 @@
   .undo:hover { color: var(--ink); background: #ece9e3; } .nope:hover { background: #fdecea; color: var(--alert); }
   .row:disabled { opacity: 1; }
   .rule { margin: 0; font-size: 11px; color: var(--ink-3); text-align: center; }
+  /* Expanded: every title and line in full; the card scrolls once it reaches the screen's height. */
+  .big .card { max-height: calc(100vh - 28px); overflow-y: auto; box-sizing: border-box; }
+  .big .list { max-height: none; overflow: visible; }
+  .big .cap { white-space: normal; }
+  .big .txt b { white-space: normal; font-size: 13.5px; line-height: 1.35; }
+  .big .txt small { display: block; -webkit-line-clamp: unset; font-size: 12.5px; line-height: 1.45; margin-top: 2px; user-select: text; }
+  .big .row { align-items: flex-start; padding: 10px 10px; }
+  .big .row .u { margin-top: 6px; }
   ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 </style>
 </head>
