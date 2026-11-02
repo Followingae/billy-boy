@@ -132,6 +132,21 @@ function applyDock(dock, tucked = false) { settle(dock, savedCenter(), { tucked 
 // ── windows ────────────────────────────────────────────────────────────────────────────
 const webPreferences = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
 
+/* A window can die under a running app: the renderer crashes, the GPU process is reset on
+   wake, or Windows tears it down on a display change. On 1 Nov 2026 Billy's went at 02:01
+   and the app kept polling into a destroyed window for a day, so he was simply gone from the
+   screen. Every sender now checks the window is alive, and a dead Billy or card is rebuilt. */
+const alive = (w) => !!w && !w.isDestroyed() && !w.webContents.isDestroyed()
+
+function revive(which) {
+  setTimeout(() => {
+    try {
+      if (which === 'billy' && !alive(billy)) { placed = false; createBilly() }
+      if (which === 'card' && !alive(card)) createCard()
+    } catch (e) { logError('revive', e && e.stack) }
+  }, 1500)
+}
+
 function createBilly() {
   billy = new BrowserWindow({
     width: SIZE, height: SIZE, frame: false, transparent: true, resizable: false, alwaysOnTop: true,
@@ -141,6 +156,8 @@ function createBilly() {
   billy.setVisibleOnAllWorkspaces(true)
   billy.loadFile(path.join(DIST, 'billy.html'))
   billy.setIgnoreMouseEvents(true, { forward: true })
+  billy.on('closed', () => { billy = null; revive('billy') })
+  billy.webContents.on('render-process-gone', () => { try { billy.destroy() } catch {} ; billy = null; revive('billy') })
   billy.once('ready-to-show', () => {
     const q = place()
     const start = geo.layout(displays(), q.dock || { mode: 'float' }, savedCenter(), !!q.tucked)
@@ -223,6 +240,8 @@ function createCard() {
   })
   card.setAlwaysOnTop(true, 'screen-saver')
   card.loadFile(path.join(DIST, 'card.html'))
+  card.on('closed', () => { card = null; cardFace = null; revive('card') })
+  card.webContents.on('render-process-gone', () => { try { card.destroy() } catch {} ; card = null; revive('card') })
 }
 
 function openRoom(section) {
@@ -269,7 +288,7 @@ function showCard(uid) {
   placeCard()
   billy.webContents.send('card-open', uid)
 }
-function hideCard() { if (card) card.hide(); cardFace = null; billy && billy.webContents.send('card-open', null) }
+function hideCard() { if (alive(card)) card.hide(); cardFace = null; alive(billy) && billy.webContents.send('card-open', null) }
 function cardSide() {
   const d = place().dock || {}
   if (d.mode === 'edge') return { left: 'left', right: 'right', top: 'top', bottom: 'bottom' }[d.side]
@@ -280,9 +299,9 @@ function cardSide() {
 function pushAll() {
   const snap = faces.snapshot()
   const s = store.get()
-  billy && billy.webContents.send('state', { faces: snap, look: s.look, pinned: s.pinned, quiet: s.quiet, sound: !process.env.BILLY_DEMO && s.sound !== false })
-  if (card && cardFace) { const f = snap.find((x) => x.uid === cardFace); if (f) card.webContents.send('card', { face: f, side: cardSide(), color: store.get().look?.color }) }
-  room && room.webContents.send('room-state', roomState())
+  alive(billy) && billy.webContents.send('state', { faces: snap, look: s.look, pinned: s.pinned, quiet: s.quiet, sound: !process.env.BILLY_DEMO && s.sound !== false })
+  if (alive(card) && cardFace) { const f = snap.find((x) => x.uid === cardFace); if (f) card.webContents.send('card', { face: f, side: cardSide(), color: store.get().look?.color }) }
+  alive(room) && room.webContents.send('room-state', roomState())
 }
 
 function roomState() {
@@ -535,7 +554,7 @@ function buildTray() {
 }
 
 function summon() {
-  if (!billy) return
+  if (!alive(billy)) { revive('billy'); return }
   const p = screen.getCursorScreenPoint()
   settle({ mode: 'float' }, p)
   billy.showInactive()
@@ -548,13 +567,13 @@ else app.whenReady().then(() => {
   faces.init({
     onChange: () => pushAll(),
     openExternal: (u) => { if (/^https:\/\//.test(u)) shell.openExternal(u) },
-    notify: (title, body) => { try { new Notification({ title, body, silent: false }).show() } catch {} ; billy && billy.webContents.send('nudge') },
+    notify: (title, body) => { try { new Notification({ title, body, silent: false }).show() } catch {} ; alive(billy) && billy.webContents.send('nudge') },
     log: (...a) => logError('connector', a.join(' ')),
   })
   createBilly(); createCard(); buildTray()
   globalShortcut.register('Control+Alt+B', summon)
   screen.on('display-metrics-changed', () => {
-    if (!billy || !placed || drag) return
+    if (!alive(billy) || !placed || drag) return
     settle(place().dock || { mode: 'float' }, savedCenter(), { tucked: !!place().tucked, instant: true })
   })
   if (!store.get().onboarded && !process.env.BILLY_DEMO) setTimeout(() => openRoom('welcome'), 900)
